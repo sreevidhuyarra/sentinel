@@ -1,0 +1,6 @@
+outs:
+- md5: 97448ae36a9acd7110a7c6dafed93e84.dir
+  size: 1152270765
+  nfiles: 5
+  hash: md5
+  path: cicids2017

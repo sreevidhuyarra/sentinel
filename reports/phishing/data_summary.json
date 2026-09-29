@@ -1,0 +1,43 @@
+{
+  "rows_in": 217204,
+  "dropped_too_short": 57,
+  "dropped_duplicates": 16630,
+  "conflicting_label_texts": 2,
+  "rows_out": 200517,
+  "groups": 70201,
+  "groups_in_more_than_one_split": 0,
+  "by_kind": {
+    "fraud": {
+      "test": 650,
+      "train": 1951,
+      "val": 650
+    },
+    "legitimate": {
+      "test": 17584,
+      "train": 72838,
+      "val": 17585
+    },
+    "phishing": {
+      "test": 309,
+      "train": 926,
+      "val": 309
+    },
+    "spam": {
+      "test": 17544,
+      "train": 52628,
+      "val": 17543
+    }
+  },
+  "by_source": {
+    "CEAS_08": 34408,
+    "Enron": 29395,
+    "Ling": 2854,
+    "Nazario": 1544,
+    "Nazario_5": 1211,
+    "Nigerian_5": 4522,
+    "SpamAssasin": 5168,
+    "TREC_05": 53848,
+    "TREC_06": 15590,
+    "TREC_07": 51977
+  }
+}

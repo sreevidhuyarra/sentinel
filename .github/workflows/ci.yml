@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --python 3.12
+      - name: Lint
+        run: |
+          uv run ruff check src tests
+          uv run ruff format --check src tests
+      - name: Type-check
+        run: uv run mypy
+      # Tests build and schema-validate the synthetic dataset end to end;
+      # "slow" tests need the real 1 GB dataset and are skipped here.
+      - name: Test
+        run: uv run pytest -m "not slow" --cov=sentinel --cov-report=term-missing
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose config --quiet

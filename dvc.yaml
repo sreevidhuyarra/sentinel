@@ -1,0 +1,108 @@
+stages:
+  ingest:
+    cmd: sentinel data ingest
+    deps:
+      - data/raw/cicids2017
+      - src/sentinel/data/ingest.py
+      - src/sentinel/data/columns.py
+    outs:
+      - data/interim/flows.parquet
+
+  build:
+    cmd: sentinel data build
+    deps:
+      - data/interim/flows.parquet
+      - src/sentinel/data/clean.py
+      - src/sentinel/data/labels.py
+      - src/sentinel/data/splits.py
+      - src/sentinel/data/features.py
+      - src/sentinel/data/schemas.py
+      - src/sentinel/data/pipeline.py
+    params:
+      - seed
+      - data.attempted_policy
+      - data.dev_sample_frac
+      - split
+      - features
+    outs:
+      - data/processed/flows.parquet
+      - data/processed/flows_dev.parquet
+      - data/processed/feature_spec.json
+      - data/reference/reference.parquet
+    metrics:
+      - reports/data_summary.json:
+          cache: false
+
+  # Needs the MLflow server (docker compose up -d mlflow): logs runs and registers
+  # ids-classifier, promoting it to @production only if it beats the current one.
+  train_ids:
+    cmd: sentinel ids train --sample full
+    deps:
+      - data/processed/flows.parquet
+      - data/processed/feature_spec.json
+      - src/sentinel/ids
+    params:
+      - seed
+      - ids
+    outs:
+      - models/ids
+    metrics:
+      - reports/ids/metrics.json:
+          cache: false
+
+  # Module 2: autoencoder + Isolation Forest on benign flows; fusion, held-out-family and
+  # new-network (UNSW-NB15) studies. Needs MLflow up; registers anomaly-detector.
+  train_anomaly:
+    cmd: sentinel anomaly train
+    deps:
+      - data/processed/flows.parquet
+      - data/processed/feature_spec.json
+      - data/interim/cic_unsw_nb15.parquet
+      - models/ids
+      - src/sentinel/anomaly
+      - src/sentinel/ids
+    params:
+      - seed
+      - anomaly
+      - ids
+      - split.holdout_families
+    outs:
+      - models/anomaly
+    metrics:
+      - reports/anomaly/metrics.json:
+          cache: false
+
+  # Module 3 data: 11 email corpora -> deduplicated, sender/campaign-grouped split and the
+  # folder uploaded to Kaggle for LoRA fine-tuning (notebooks/phishing_lora_kaggle.ipynb).
+  prepare_phishing:
+    cmd: sentinel phishing prepare
+    deps:
+      - data/raw/phishing_emails
+      - src/sentinel/phishing/data.py
+      - src/sentinel/phishing/text.py
+    params:
+      - seed
+      - phishing
+    outs:
+      - data/processed/phishing
+      - kaggle/phishing-emails
+    metrics:
+      - reports/phishing/data_summary.json:
+          cache: false
+
+  # Goal G3: train on CIC-IDS2017, score CIC-UNSW-NB15 unchanged. Needs MLflow up.
+  cross_dataset:
+    cmd: sentinel ids cross-dataset
+    deps:
+      - data/raw/cic_unsw_nb15
+      - data/processed/flows.parquet
+      - data/processed/feature_spec.json
+      - src/sentinel/ids
+    params:
+      - seed
+      - ids
+    outs:
+      - data/interim/cic_unsw_nb15.parquet
+    metrics:
+      - reports/ids/cross_dataset_metrics.json:
+          cache: false

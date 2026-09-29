@@ -1,0 +1,6 @@
+outs:
+- md5: 6f4fa354491591385462937dac9a6271.dir
+  size: 449269631
+  nfiles: 11
+  hash: md5
+  path: phishing_emails

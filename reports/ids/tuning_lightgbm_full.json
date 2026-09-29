@@ -1,0 +1,18 @@
+{
+  "family": "lightgbm",
+  "sample": "full",
+  "n_trials": 30,
+  "timeout_minutes": 60.0,
+  "best_val_macro_f1": 0.9999420149759632,
+  "best_params": {
+    "class_weight_power": 0.21958902919204742,
+    "learning_rate": 0.03680235919225101,
+    "num_leaves": 75,
+    "min_child_samples": 107,
+    "feature_fraction": 0.8584434509721128,
+    "bagging_fraction": 0.979075282801251,
+    "lambda_l1": 0.006831304681740917,
+    "lambda_l2": 0.7095955564334737,
+    "rounds": 195
+  }
+}

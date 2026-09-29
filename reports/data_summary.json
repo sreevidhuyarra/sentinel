@@ -1,0 +1,56 @@
+{
+  "clean": {
+    "rows_in": 2099976,
+    "non_finite_values": 10,
+    "null_labels_dropped": 0,
+    "duplicates_dropped": 258629,
+    "rows_out": 1841347
+  },
+  "rows": 1839631,
+  "families": {
+    "Benign": {
+      "test": 286833,
+      "train": 860473,
+      "val": 286826
+    },
+    "Bot": {
+      "test": 142,
+      "train": 424,
+      "val": 142
+    },
+    "BruteForce": {
+      "test": 1348,
+      "train": 4039,
+      "val": 1346
+    },
+    "DDoS": {
+      "test": 19009,
+      "train": 57026,
+      "val": 19009
+    },
+    "DoS": {
+      "test": 34258,
+      "train": 102764,
+      "val": 34255
+    },
+    "Infiltration": {
+      "test": 8,
+      "train": 21,
+      "val": 7
+    },
+    "PortScan": {
+      "test": 26320,
+      "train": 78959,
+      "val": 26320
+    },
+    "WebAttack": {
+      "test": 22,
+      "train": 59,
+      "val": 21
+    }
+  },
+  "n_features": 84,
+  "dropped_constant": [
+    "bwd_urg_flags"
+  ]
+}

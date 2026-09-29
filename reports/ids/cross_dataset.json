@@ -1,0 +1,546 @@
+{
+  "n_features": 79,
+  "dropped": [
+    "bwd_rst_flags",
+    "fwd_rst_flags",
+    "icmp_code",
+    "icmp_type",
+    "total_tcp_flow_time"
+  ],
+  "lightgbm": {
+    "cic_test_macro_f1": 0.9806450786702644,
+    "cic_test_benign_fpr": 2.789079359766833e-05,
+    "unsw": {
+      "benign_fpr": 0.00846587790666824,
+      "attack_recall": 0.030470370234019314,
+      "precision": 0.10405665912329226,
+      "f1": 0.04713766361970935,
+      "roc_auc": 0.5698728021140277,
+      "pr_auc": 0.04946957576021006,
+      "attack_share": 0.03126012974513226,
+      "recall_at_1pct_fpr_oracle": 0.03086306127207353,
+      "oracle_threshold": 0.43178170804365174,
+      "per_category": {
+        "Analysis": {
+          "flows": 385,
+          "flagged": 0.0,
+          "predicted_as": {
+            "Benign": 385
+          }
+        },
+        "Backdoor": {
+          "flows": 452,
+          "flagged": 0.0,
+          "predicted_as": {
+            "Benign": 452
+          }
+        },
+        "Benign": {
+          "flows": 2525314,
+          "flagged": 0.00846587790666824
+        },
+        "DoS": {
+          "flows": 4418,
+          "flagged": 0.031462200090538704,
+          "as_DoS": 0.0,
+          "predicted_as": {
+            "Benign": 4279,
+            "PortScan": 137,
+            "Infiltration": 2
+          }
+        },
+        "Exploits": {
+          "flows": 30925,
+          "flagged": 0.007275666936135812,
+          "predicted_as": {
+            "Benign": 30700,
+            "DoS": 15,
+            "PortScan": 208,
+            "Infiltration": 2
+          }
+        },
+        "Fuzzers": {
+          "flows": 26433,
+          "flagged": 0.05394771686906518,
+          "predicted_as": {
+            "Benign": 25007,
+            "DoS": 9,
+            "PortScan": 1355,
+            "BruteForce": 7,
+            "Infiltration": 55
+          }
+        },
+        "Generic": {
+          "flows": 4496,
+          "flagged": 0.09230427046263345,
+          "predicted_as": {
+            "Benign": 4081,
+            "DoS": 17,
+            "PortScan": 398
+          }
+        },
+        "Reconnaissance": {
+          "flows": 12035,
+          "flagged": 0.0039052762775238885,
+          "as_PortScan": 1.0,
+          "predicted_as": {
+            "Benign": 11988,
+            "PortScan": 47
+          }
+        },
+        "Shellcode": {
+          "flows": 2102,
+          "flagged": 0.10371075166508087,
+          "predicted_as": {
+            "Benign": 1884,
+            "PortScan": 218
+          }
+        },
+        "Worms": {
+          "flows": 243,
+          "flagged": 0.053497942386831275,
+          "predicted_as": {
+            "Benign": 230,
+            "PortScan": 13
+          }
+        }
+      }
+    }
+  },
+  "xgboost": {
+    "cic_test_macro_f1": 0.998181662634203,
+    "cic_test_benign_fpr": 4.1836190396502496e-05,
+    "unsw": {
+      "benign_fpr": 0.012755641476663892,
+      "attack_recall": 0.056363435555719175,
+      "precision": 0.12479282706154055,
+      "f1": 0.07765398075980184,
+      "roc_auc": 0.6767515268655018,
+      "pr_auc": 0.06275939771951203,
+      "attack_share": 0.03126012974513226,
+      "recall_at_1pct_fpr_oracle": 0.052841487808170426,
+      "oracle_threshold": 0.17444172340361044,
+      "per_category": {
+        "Analysis": {
+          "flows": 385,
+          "flagged": 0.0,
+          "predicted_as": {
+            "Benign": 385
+          }
+        },
+        "Backdoor": {
+          "flows": 452,
+          "flagged": 0.035398230088495575,
+          "predicted_as": {
+            "Benign": 436,
+            "PortScan": 16
+          }
+        },
+        "Benign": {
+          "flows": 2525314,
+          "flagged": 0.012755641476663892
+        },
+        "DoS": {
+          "flows": 4418,
+          "flagged": 0.06699864191942055,
+          "as_DoS": 0.0,
+          "predicted_as": {
+            "Benign": 4122,
+            "PortScan": 286,
+            "WebAttack": 10
+          }
+        },
+        "Exploits": {
+          "flows": 30925,
+          "flagged": 0.015165723524656427,
+          "predicted_as": {
+            "Benign": 30456,
+            "PortScan": 383,
+            "WebAttack": 76,
+            "Bot": 10
+          }
+        },
+        "Fuzzers": {
+          "flows": 26433,
+          "flagged": 0.11553739643627284,
+          "predicted_as": {
+            "Benign": 23379,
+            "PortScan": 2999,
+            "Bot": 55
+          }
+        },
+        "Generic": {
+          "flows": 4496,
+          "flagged": 0.09408362989323843,
+          "predicted_as": {
+            "Benign": 4073,
+            "PortScan": 416,
+            "Bot": 7
+          }
+        },
+        "Reconnaissance": {
+          "flows": 12035,
+          "flagged": 0.003739094308267553,
+          "as_PortScan": 1.0,
+          "predicted_as": {
+            "Benign": 11990,
+            "PortScan": 45
+          }
+        },
+        "Shellcode": {
+          "flows": 2102,
+          "flagged": 0.13225499524262607,
+          "predicted_as": {
+            "Benign": 1824,
+            "PortScan": 278
+          }
+        },
+        "Worms": {
+          "flows": 243,
+          "flagged": 0.04938271604938271,
+          "predicted_as": {
+            "Benign": 231,
+            "PortScan": 12
+          }
+        }
+      }
+    }
+  },
+  "mlp": {
+    "cic_test_macro_f1": 0.9472699711068454,
+    "cic_test_benign_fpr": 0.001708311107857185,
+    "unsw": {
+      "benign_fpr": 0.05767124405123482,
+      "attack_recall": 0.08625704082759636,
+      "precision": 0.04604138418911749,
+      "f1": 0.060036898477937785,
+      "roc_auc": 0.5514908078492309,
+      "pr_auc": 0.04415316018969854,
+      "attack_share": 0.03126012974513226,
+      "recall_at_1pct_fpr_oracle": 0.026334842739510853,
+      "oracle_threshold": 0.8255400148108232,
+      "per_category": {
+        "Analysis": {
+          "flows": 385,
+          "flagged": 0.0,
+          "predicted_as": {
+            "Benign": 385
+          }
+        },
+        "Backdoor": {
+          "flows": 452,
+          "flagged": 0.12831858407079647,
+          "predicted_as": {
+            "Benign": 394,
+            "DoS": 9,
+            "DDoS": 3,
+            "PortScan": 21,
+            "Bot": 25
+          }
+        },
+        "Benign": {
+          "flows": 2525314,
+          "flagged": 0.05767124405123482
+        },
+        "DoS": {
+          "flows": 4418,
+          "flagged": 0.11339972838388411,
+          "as_DoS": 0.906187624750499,
+          "predicted_as": {
+            "Benign": 3917,
+            "DoS": 454,
+            "PortScan": 42,
+            "Bot": 5
+          }
+        },
+        "Exploits": {
+          "flows": 30925,
+          "flagged": 0.10409054163298302,
+          "predicted_as": {
+            "Benign": 27706,
+            "DoS": 2986,
+            "DDoS": 1,
+            "PortScan": 171,
+            "Bot": 61
+          }
+        },
+        "Fuzzers": {
+          "flows": 26433,
+          "flagged": 0.10467975636514962,
+          "predicted_as": {
+            "Benign": 23666,
+            "DoS": 2744,
+            "PortScan": 23
+          }
+        },
+        "Generic": {
+          "flows": 4496,
+          "flagged": 0.07139679715302491,
+          "predicted_as": {
+            "Benign": 4175,
+            "DoS": 266,
+            "PortScan": 25,
+            "Bot": 30
+          }
+        },
+        "Reconnaissance": {
+          "flows": 12035,
+          "flagged": 0.004819277108433735,
+          "as_PortScan": 0.06896551724137931,
+          "predicted_as": {
+            "Benign": 11977,
+            "DoS": 54,
+            "PortScan": 4
+          }
+        },
+        "Shellcode": {
+          "flows": 2102,
+          "flagged": 0.01569933396764986,
+          "predicted_as": {
+            "Benign": 2069,
+            "DoS": 5,
+            "PortScan": 28
+          }
+        },
+        "Worms": {
+          "flows": 243,
+          "flagged": 0.2962962962962963,
+          "predicted_as": {
+            "Benign": 171,
+            "DoS": 72
+          }
+        }
+      }
+    }
+  },
+  "ensemble": {
+    "lgbm_weight": 0.2,
+    "cic_test_macro_f1": 0.969420201176886,
+    "cic_test_benign_fpr": 0.0005403841259548239,
+    "unsw": {
+      "benign_fpr": 0.033261210289096725,
+      "attack_recall": 0.04599393783210004,
+      "precision": 0.04271565822914648,
+      "f1": 0.044294223314739534,
+      "roc_auc": 0.5765111661551672,
+      "pr_auc": 0.0452887458855383,
+      "attack_share": 0.03126012974513226,
+      "recall_at_1pct_fpr_oracle": 0.026334842739510853,
+      "oracle_threshold": 0.6613831895507906,
+      "per_category": {
+        "Analysis": {
+          "flows": 385,
+          "flagged": 0.0,
+          "predicted_as": {
+            "Benign": 385
+          }
+        },
+        "Backdoor": {
+          "flows": 452,
+          "flagged": 0.015486725663716814,
+          "predicted_as": {
+            "Benign": 445,
+            "DoS": 3,
+            "DDoS": 3,
+            "Bot": 1
+          }
+        },
+        "Benign": {
+          "flows": 2525314,
+          "flagged": 0.033261210289096725
+        },
+        "DoS": {
+          "flows": 4418,
+          "flagged": 0.07333635129017656,
+          "as_DoS": 0.9845679012345679,
+          "predicted_as": {
+            "Benign": 4094,
+            "DoS": 319,
+            "PortScan": 5
+          }
+        },
+        "Exploits": {
+          "flows": 30925,
+          "flagged": 0.052320129345189974,
+          "predicted_as": {
+            "Benign": 29307,
+            "DoS": 1605,
+            "DDoS": 1,
+            "PortScan": 1,
+            "Bot": 11
+          }
+        },
+        "Fuzzers": {
+          "flows": 26433,
+          "flagged": 0.06174100556123028,
+          "predicted_as": {
+            "Benign": 24801,
+            "DoS": 1631,
+            "PortScan": 1
+          }
+        },
+        "Generic": {
+          "flows": 4496,
+          "flagged": 0.029581850533807828,
+          "predicted_as": {
+            "Benign": 4363,
+            "DoS": 119,
+            "PortScan": 2,
+            "Bot": 12
+          }
+        },
+        "Reconnaissance": {
+          "flows": 12035,
+          "flagged": 0.00024927295388450354,
+          "as_PortScan": 0.0,
+          "predicted_as": {
+            "Benign": 12032,
+            "DoS": 3
+          }
+        },
+        "Shellcode": {
+          "flows": 2102,
+          "flagged": 0.0009514747859181732,
+          "predicted_as": {
+            "Benign": 2100,
+            "DoS": 2
+          }
+        },
+        "Worms": {
+          "flows": 243,
+          "flagged": 0.11934156378600823,
+          "predicted_as": {
+            "Benign": 214,
+            "DoS": 29
+          }
+        }
+      }
+    }
+  },
+  "unsw_in_domain_reference": {
+    "train_flows": 1563643,
+    "test_flows": 521219,
+    "roc_auc": 0.9953373586934913,
+    "pr_auc": 0.8478821061064902,
+    "benign_fpr": 0.01126240735937336,
+    "attack_recall": 0.8736399604352126,
+    "per_category_flagged": {
+      "Analysis": 0.21333333333333335,
+      "Backdoor": 0.9195402298850575,
+      "DoS": 0.9409722222222222,
+      "Exploits": 0.9563665855636658,
+      "Fuzzers": 0.7114106702107461,
+      "Generic": 0.9715909090909091,
+      "Reconnaissance": 0.9995810640971932,
+      "Shellcode": 0.7227722772277227,
+      "Worms": 1.0
+    }
+  },
+  "feature_shift": [
+    {
+      "feature": "rst_flag_count",
+      "gain_share": 0.20452324791935045,
+      "psi_benign": 0.6375118344261903,
+      "cic_benign_median": 0.0,
+      "unsw_benign_median": 0.0
+    },
+    {
+      "feature": "flow_duration",
+      "gain_share": 0.18530769948032247,
+      "psi_benign": 2.0414583712501626,
+      "cic_benign_median": 96798.0,
+      "unsw_benign_median": 13455.0
+    },
+    {
+      "feature": "bwd_packet_length_max",
+      "gain_share": 0.1036664959556527,
+      "psi_benign": 2.9672319428643394,
+      "cic_benign_median": 134.0,
+      "unsw_benign_median": 192.0
+    },
+    {
+      "feature": "bwd_packet_length_std",
+      "gain_share": 0.09311963631439092,
+      "psi_benign": 0.31534633063265355,
+      "cic_benign_median": 0.0,
+      "unsw_benign_median": 65.51570569190027
+    },
+    {
+      "feature": "total_length_of_fwd_packet",
+      "gain_share": 0.05961830713751577,
+      "psi_benign": 2.7848985791569043,
+      "cic_benign_median": 90.0,
+      "unsw_benign_median": 454.0
+    },
+    {
+      "feature": "bwd_init_win_bytes",
+      "gain_share": 0.05845267800511827,
+      "psi_benign": 4.288710759131543,
+      "cic_benign_median": 0.0,
+      "unsw_benign_median": 14480.0
+    },
+    {
+      "feature": "dst_port",
+      "gain_share": 0.04672033614023841,
+      "psi_benign": 2.167436171342891,
+      "cic_benign_median": 53.0,
+      "unsw_benign_median": 14352.0
+    },
+    {
+      "feature": "bwd_psh_flags",
+      "gain_share": 0.035805113440407675,
+      "psi_benign": 2.6635412084619157,
+      "cic_benign_median": 0.0,
+      "unsw_benign_median": 0.0
+    },
+    {
+      "feature": "fwd_bwd_bytes_ratio",
+      "gain_share": 0.03242786297273942,
+      "psi_benign": 2.3505648008946616,
+      "cic_benign_median": 0.3939393939393939,
+      "unsw_benign_median": 0.014962593516209476
+    },
+    {
+      "feature": "fwd_packet_length_max",
+      "gain_share": 0.03116824975116545,
+      "psi_benign": 2.9181519298495306,
+      "cic_benign_median": 48.0,
+      "unsw_benign_median": 66.0
+    },
+    {
+      "feature": "packet_length_std",
+      "gain_share": 0.019140409274404618,
+      "psi_benign": 2.1620171888257587,
+      "cic_benign_median": 55.42562584220407,
+      "unsw_benign_median": 101.27036563833342
+    },
+    {
+      "feature": "bwd_bulk_rate_avg",
+      "gain_share": 0.0157071304070651,
+      "psi_benign": 0.7484673897807299,
+      "cic_benign_median": 0.0,
+      "unsw_benign_median": 22401.0
+    },
+    {
+      "feature": "bwd_iat_mean",
+      "gain_share": 0.013568825585366755,
+      "psi_benign": 3.186300308308197,
+      "cic_benign_median": 48.0,
+      "unsw_benign_median": 392.68181818181813
+    },
+    {
+      "feature": "flow_iat_max",
+      "gain_share": 0.013159015152815859,
+      "psi_benign": 3.08904646100784,
+      "cic_benign_median": 66346.5,
+      "unsw_benign_median": 1995.0
+    },
+    {
+      "feature": "fwd_act_data_pkts",
+      "gain_share": 0.009996130735257559,
+      "psi_benign": 1.2308525170741558,
+      "cic_benign_median": 1.0,
+      "unsw_benign_median": 3.0
+    }
+  ]
+}

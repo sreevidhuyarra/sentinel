@@ -1,0 +1,396 @@
+schema: '2.0'
+stages:
+  ingest:
+    cmd: sentinel data ingest
+    deps:
+    - path: data/raw/cicids2017
+      hash: md5
+      md5: 97448ae36a9acd7110a7c6dafed93e84.dir
+      size: 1152270765
+      nfiles: 5
+    - path: src/sentinel/data/columns.py
+      hash: md5
+      md5: 84dbfda63a90be7f54d9dab0dbc39ef1
+      size: 2762
+    - path: src/sentinel/data/ingest.py
+      hash: md5
+      md5: c0407878ec91542ce0f7093b3f962baa
+      size: 2408
+    outs:
+    - path: data/interim/flows.parquet
+      hash: md5
+      md5: b8116f2a388d27a32ed1659815b06551
+      size: 299562405
+  build:
+    cmd: sentinel data build
+    deps:
+    - path: data/interim/flows.parquet
+      hash: md5
+      md5: b8116f2a388d27a32ed1659815b06551
+      size: 299562405
+    - path: src/sentinel/data/clean.py
+      hash: md5
+      md5: 0b66a69732860f26624c87c56d265c5e
+      size: 1540
+    - path: src/sentinel/data/features.py
+      hash: md5
+      md5: 2ccd31a410034eebaec5455decbbddb2
+      size: 3758
+    - path: src/sentinel/data/labels.py
+      hash: md5
+      md5: 64a3a959d945a207e947d4ff09b81394
+      size: 3061
+    - path: src/sentinel/data/pipeline.py
+      hash: md5
+      md5: bb16ef6f768ac3f876c825890beeed02
+      size: 3056
+    - path: src/sentinel/data/schemas.py
+      hash: md5
+      md5: 17d23c5d803466b95de232146f61e588
+      size: 2309
+    - path: src/sentinel/data/splits.py
+      hash: md5
+      md5: 4f58d7403fe422b7c45f2bedd5fdd3cc
+      size: 3303
+    params:
+      params.yaml:
+        data.attempted_policy: benign
+        data.dev_sample_frac: 0.1
+        features:
+          log_transform: true
+          drop_constant: true
+        seed: 42
+        split:
+          train_frac: 0.6
+          val_frac: 0.2
+          gap_rows: 50
+          holdout_families:
+          - Infiltration
+          - Bot
+          - WebAttack
+    outs:
+    - path: data/processed/feature_spec.json
+      hash: md5
+      md5: 77943abbde336139e209c1fde5dc0a5e
+      size: 3756
+    - path: data/processed/flows.parquet
+      hash: md5
+      md5: 6430f543132d8cff57fa0b15291ee8c7
+      size: 265107928
+    - path: data/processed/flows_dev.parquet
+      hash: md5
+      md5: d0f73a556994337605b902acca57a7db
+      size: 29756701
+    - path: data/reference/reference.parquet
+      hash: md5
+      md5: da4f8a96910094c72461fc27d5e8cba6
+      size: 17097927
+    - path: reports/data_summary.json
+      hash: md5
+      md5: 6c18afd24d6d1779df2fd531a7d5f532
+      size: 986
+  train_ids:
+    cmd: sentinel ids train --sample full
+    deps:
+    - path: data/processed/feature_spec.json
+      hash: md5
+      md5: 77943abbde336139e209c1fde5dc0a5e
+      size: 3756
+    - path: data/processed/flows.parquet
+      hash: md5
+      md5: 6430f543132d8cff57fa0b15291ee8c7
+      size: 265107928
+    - path: src/sentinel/ids
+      hash: md5
+      md5: 8b771944f572737fdbdec43fc5aead8d.dir
+      size: 78550
+      nfiles: 18
+    params:
+      params.yaml:
+        ids:
+          benign_fpr_target: 0.01
+          class_weight_power: 0.5
+          max_class_weight: 1000
+          severity_bands:
+          - 0.6
+          - 0.8
+          - 0.95
+          tune_trials: 30
+          tune_timeout_minutes: 60
+          lightgbm:
+            n_estimators: 2000
+            learning_rate: 0.037
+            num_leaves: 75
+            min_child_samples: 107
+            feature_fraction: 0.86
+            bagging_fraction: 0.98
+            lambda_l1: 0.0068
+            lambda_l2: 0.71
+            early_stopping_rounds: 100
+            class_weight_power: 0.22
+          xgboost:
+            n_estimators: 2000
+            learning_rate: 0.065
+            max_depth: 4
+            min_child_weight: 4.67
+            subsample: 0.53
+            colsample_bytree: 0.73
+            reg_alpha: 2e-05
+            reg_lambda: 0.0002
+            early_stopping_rounds: 100
+            class_weight_power: 0.18
+          mlp:
+            hidden:
+            - 256
+            - 128
+            - 64
+            dropout: 0.2
+            lr: 0.001
+            weight_decay: 0.0001
+            batch_size: 2048
+            epochs: 30
+            patience: 6
+            focal_gamma: 0.0
+        seed: 42
+    outs:
+    - path: models/ids
+      hash: md5
+      md5: e9af1f062067de6d8e46fc1363cadc38.dir
+      size: 5258809
+      nfiles: 5
+    - path: reports/ids/metrics.json
+      hash: md5
+      md5: 76a69f075f904544272ec1c9a6d3c1a6
+      size: 1313
+  cross_dataset:
+    cmd: sentinel ids cross-dataset
+    deps:
+    - path: data/processed/feature_spec.json
+      hash: md5
+      md5: 77943abbde336139e209c1fde5dc0a5e
+      size: 3756
+    - path: data/processed/flows.parquet
+      hash: md5
+      md5: 6430f543132d8cff57fa0b15291ee8c7
+      size: 265107928
+    - path: data/raw/cic_unsw_nb15
+      hash: md5
+      md5: 670a16356c897feef2245aeb1b4e3414.dir
+      size: 1914305081
+      nfiles: 1
+    - path: src/sentinel/ids
+      hash: md5
+      md5: 8b771944f572737fdbdec43fc5aead8d.dir
+      size: 78550
+      nfiles: 18
+    params:
+      params.yaml:
+        ids:
+          benign_fpr_target: 0.01
+          class_weight_power: 0.5
+          max_class_weight: 1000
+          severity_bands:
+          - 0.6
+          - 0.8
+          - 0.95
+          tune_trials: 30
+          tune_timeout_minutes: 60
+          lightgbm:
+            n_estimators: 2000
+            learning_rate: 0.037
+            num_leaves: 75
+            min_child_samples: 107
+            feature_fraction: 0.86
+            bagging_fraction: 0.98
+            lambda_l1: 0.0068
+            lambda_l2: 0.71
+            early_stopping_rounds: 100
+            class_weight_power: 0.22
+          xgboost:
+            n_estimators: 2000
+            learning_rate: 0.065
+            max_depth: 4
+            min_child_weight: 4.67
+            subsample: 0.53
+            colsample_bytree: 0.73
+            reg_alpha: 2e-05
+            reg_lambda: 0.0002
+            early_stopping_rounds: 100
+            class_weight_power: 0.18
+          mlp:
+            hidden:
+            - 256
+            - 128
+            - 64
+            dropout: 0.2
+            lr: 0.001
+            weight_decay: 0.0001
+            batch_size: 2048
+            epochs: 30
+            patience: 6
+            focal_gamma: 0.0
+        seed: 42
+    outs:
+    - path: data/interim/cic_unsw_nb15.parquet
+      hash: md5
+      md5: 8c21b96a2370a4769f1ff03e738d25c2
+      size: 291873462
+    - path: reports/ids/cross_dataset_metrics.json
+      hash: md5
+      md5: 2491c9b2e14df69b3c34ec832151ba77
+      size: 565
+  train_anomaly:
+    cmd: sentinel anomaly train
+    deps:
+    - path: data/interim/cic_unsw_nb15.parquet
+      hash: md5
+      md5: 8c21b96a2370a4769f1ff03e738d25c2
+      size: 291873462
+    - path: data/processed/feature_spec.json
+      hash: md5
+      md5: 77943abbde336139e209c1fde5dc0a5e
+      size: 3756
+    - path: data/processed/flows.parquet
+      hash: md5
+      md5: 6430f543132d8cff57fa0b15291ee8c7
+      size: 265107928
+    - path: models/ids
+      hash: md5
+      md5: e9af1f062067de6d8e46fc1363cadc38.dir
+      size: 5258809
+      nfiles: 5
+    - path: src/sentinel/anomaly
+      hash: md5
+      md5: 5db7991a68c4e2222809e01f9e373eed.dir
+      size: 36809
+      nfiles: 8
+    - path: src/sentinel/ids
+      hash: md5
+      md5: 8b771944f572737fdbdec43fc5aead8d.dir
+      size: 78550
+      nfiles: 18
+    params:
+      params.yaml:
+        anomaly:
+          fpr_target: 0.01
+          fpr_sweep:
+          - 0.001
+          - 0.005
+          - 0.01
+          - 0.02
+          autoencoder:
+            hidden:
+            - 64
+            - 32
+            bottleneck_sweep:
+            - 8
+            - 12
+            - 16
+            lr: 0.001
+            weight_decay: 1e-05
+            batch_size: 4096
+            epochs: 30
+            patience: 3
+          iforest:
+            n_estimators: 200
+            max_samples: 256
+            train_rows: 200000
+        ids:
+          benign_fpr_target: 0.01
+          class_weight_power: 0.5
+          max_class_weight: 1000
+          severity_bands:
+          - 0.6
+          - 0.8
+          - 0.95
+          tune_trials: 30
+          tune_timeout_minutes: 60
+          lightgbm:
+            n_estimators: 2000
+            learning_rate: 0.037
+            num_leaves: 75
+            min_child_samples: 107
+            feature_fraction: 0.86
+            bagging_fraction: 0.98
+            lambda_l1: 0.0068
+            lambda_l2: 0.71
+            early_stopping_rounds: 100
+            class_weight_power: 0.22
+          xgboost:
+            n_estimators: 2000
+            learning_rate: 0.065
+            max_depth: 4
+            min_child_weight: 4.67
+            subsample: 0.53
+            colsample_bytree: 0.73
+            reg_alpha: 2e-05
+            reg_lambda: 0.0002
+            early_stopping_rounds: 100
+            class_weight_power: 0.18
+          mlp:
+            hidden:
+            - 256
+            - 128
+            - 64
+            dropout: 0.2
+            lr: 0.001
+            weight_decay: 0.0001
+            batch_size: 2048
+            epochs: 30
+            patience: 6
+            focal_gamma: 0.0
+        seed: 42
+        split.holdout_families:
+        - Infiltration
+        - Bot
+        - WebAttack
+    outs:
+    - path: models/anomaly
+      hash: md5
+      md5: ce25050889e5654c4f81b0029f86be49.dir
+      size: 74715
+      nfiles: 4
+    - path: reports/anomaly/metrics.json
+      hash: md5
+      md5: f02e65437e52077652d7298e7fb21d5e
+      size: 287
+  prepare_phishing:
+    cmd: sentinel phishing prepare
+    deps:
+    - path: data/raw/phishing_emails
+      hash: md5
+      md5: 6f4fa354491591385462937dac9a6271.dir
+      size: 449269631
+      nfiles: 11
+    - path: src/sentinel/phishing/data.py
+      hash: md5
+      md5: b6ce94a0cb5c7cea29fabe2e7ea2ba99
+      size: 8333
+    - path: src/sentinel/phishing/text.py
+      hash: md5
+      md5: 6c03123ce77171873e5ba59efbbe8d9e
+      size: 3093
+    params:
+      params.yaml:
+        phishing:
+          raw_dir: data/raw/phishing_emails
+          processed_dir: data/processed/phishing
+          kaggle_dir: kaggle/phishing-emails
+          max_chars: 3000
+          n_folds: 5
+        seed: 42
+    outs:
+    - path: data/processed/phishing
+      hash: md5
+      md5: f81c308d8ad421019178e5f46031f960.dir
+      size: 73486809
+      nfiles: 1
+    - path: kaggle/phishing-emails
+      hash: md5
+      md5: 406179bf0bbded8ad789c5652b9e9188.dir
+      size: 69957221
+      nfiles: 5
+    - path: reports/phishing/data_summary.json
+      hash: md5
+      md5: 7e03d5c664286258080d27f8ce535850
+      size: 825

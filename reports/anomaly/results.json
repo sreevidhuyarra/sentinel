@@ -1,0 +1,410 @@
+{
+  "bottleneck_sweep": [
+    {
+      "bottleneck": 8,
+      "val_roc_auc": 0.9436364867616995,
+      "epochs": 30,
+      "val_benign_mse": 0.01713920134153841,
+      "seconds": 395.8802740000101
+    },
+    {
+      "bottleneck": 12,
+      "val_roc_auc": 0.9327003861851464,
+      "epochs": 30,
+      "val_benign_mse": 0.012168994842111014,
+      "seconds": 489.42577529999835
+    },
+    {
+      "bottleneck": 16,
+      "val_roc_auc": 0.939987517834444,
+      "epochs": 30,
+      "val_benign_mse": 0.010031920387615538,
+      "seconds": 289.31779330001154
+    }
+  ],
+  "bottleneck": 8,
+  "autoencoder": {
+    "name": "autoencoder",
+    "threshold": 0.18293344601988795,
+    "test": {
+      "roc_auc": 0.9429792939247554,
+      "pr_auc": 0.7789086031926815,
+      "benign_fpr": 0.01015922156795069,
+      "attack_recall": 0.33217848027913743,
+      "per_label_recall": {
+        "Bot": {
+          "recall": 1.0,
+          "flows": 142
+        },
+        "BruteForce": {
+          "recall": 0.0,
+          "flows": 1348
+        },
+        "DDoS": {
+          "recall": 0.7979904255878795,
+          "flows": 19009
+        },
+        "DoS": {
+          "recall": 0.050353202171755505,
+          "flows": 34258
+        },
+        "Infiltration": {
+          "recall": 1.0,
+          "flows": 8
+        },
+        "PortScan": {
+          "recall": 0.37602583586626137,
+          "flows": 26320
+        },
+        "WebAttack": {
+          "recall": 0.045454545454545456,
+          "flows": 22
+        }
+      }
+    },
+    "fpr_sweep": {
+      "0.001": {
+        "threshold": 0.5475760355591381,
+        "benign_fpr": 0.0015932615842668032,
+        "attack_recall": 0.014634988348724525
+      },
+      "0.005": {
+        "threshold": 0.37660728394985205,
+        "benign_fpr": 0.0045148222136225605,
+        "attack_recall": 0.051216294524516995
+      },
+      "0.01": {
+        "threshold": 0.18293344601988795,
+        "benign_fpr": 0.01015922156795069,
+        "attack_recall": 0.33217848027913743
+      },
+      "0.02": {
+        "threshold": 0.0996123142540455,
+        "benign_fpr": 0.020231284405908663,
+        "attack_recall": 0.47854069315842035
+      }
+    }
+  },
+  "iforest": {
+    "name": "iforest",
+    "threshold": 0.6327661492766572,
+    "test": {
+      "roc_auc": 0.9183788339306915,
+      "pr_auc": 0.6581730110899856,
+      "benign_fpr": 0.01037188886913291,
+      "attack_recall": 0.12559951668783212,
+      "per_label_recall": {
+        "Bot": {
+          "recall": 0.04225352112676056,
+          "flows": 142
+        },
+        "BruteForce": {
+          "recall": 0.0,
+          "flows": 1348
+        },
+        "DDoS": {
+          "recall": 0.0,
+          "flows": 19009
+        },
+        "DoS": {
+          "recall": 0.009340883881137253,
+          "flows": 34258
+        },
+        "Infiltration": {
+          "recall": 0.125,
+          "flows": 8
+        },
+        "PortScan": {
+          "recall": 0.37462006079027355,
+          "flows": 26320
+        },
+        "WebAttack": {
+          "recall": 0.0,
+          "flows": 22
+        }
+      }
+    },
+    "fpr_sweep": {
+      "0.001": {
+        "threshold": 0.6649164055647733,
+        "benign_fpr": 0.0008297511095306328,
+        "attack_recall": 0.0
+      },
+      "0.005": {
+        "threshold": 0.6540909274198459,
+        "benign_fpr": 0.005159796815568641,
+        "attack_recall": 3.698817611303587e-05
+      },
+      "0.01": {
+        "threshold": 0.6327661492766572,
+        "benign_fpr": 0.01037188886913291,
+        "attack_recall": 0.12559951668783212
+      },
+      "0.02": {
+        "threshold": 0.6186225103246837,
+        "benign_fpr": 0.015810593620678236,
+        "attack_recall": 0.32275882476235096
+      }
+    },
+    "train_seconds": 2.869377399998484
+  },
+  "fusion": {
+    "supervised": {
+      "benign_fpr": 1.0459047599125624e-05,
+      "benign_false_alarms": 3,
+      "attack_recall": 0.9959436300196037,
+      "per_family_recall": {
+        "DoS": 0.9941619475742892,
+        "DDoS": 0.9988952601399337,
+        "PortScan": 0.9965045592705167,
+        "BruteForce": 0.9888724035608308,
+        "WebAttack": 0.9545454545454546,
+        "Bot": 1.0,
+        "Infiltration": 1.0
+      }
+    },
+    "fused": {
+      "benign_fpr": 0.010166194266350107,
+      "benign_false_alarms": 2916,
+      "attack_recall": 0.9968806638144673,
+      "per_family_recall": {
+        "DoS": 0.9953295580594314,
+        "DDoS": 0.9993687200799621,
+        "PortScan": 0.9974924012158055,
+        "BruteForce": 0.9888724035608308,
+        "WebAttack": 1.0,
+        "Bot": 1.0,
+        "Infiltration": 1.0
+      }
+    },
+    "unknown_anomaly_alerts": {
+      "on_benign": 2913,
+      "on_attacks": 76
+    }
+  },
+  "holdout": {
+    "Infiltration": {
+      "flows": 36,
+      "supervised_recall": 0.0,
+      "supervised_predicted_as": {
+        "Benign": 36
+      },
+      "autoencoder_recall": 0.9166666666666666,
+      "iforest_recall": 0.3888888888888889,
+      "fused_recall": 0.9166666666666666,
+      "fused_iforest_recall": 0.3888888888888889,
+      "supervised_benign_fpr": 1.0459047599125624e-05,
+      "fused_benign_fpr": 0.010166194266350107,
+      "known_families_macro_f1": 0.864376154404946
+    },
+    "Bot": {
+      "flows": 708,
+      "supervised_recall": 0.0,
+      "supervised_predicted_as": {
+        "Benign": 708
+      },
+      "autoencoder_recall": 1.0,
+      "iforest_recall": 0.043785310734463276,
+      "fused_recall": 1.0,
+      "fused_iforest_recall": 0.043785310734463276,
+      "supervised_benign_fpr": 1.0459047599125624e-05,
+      "fused_benign_fpr": 0.010166194266350107,
+      "known_families_macro_f1": 0.8590436485784604
+    },
+    "WebAttack": {
+      "flows": 102,
+      "supervised_recall": 0.00980392156862745,
+      "supervised_predicted_as": {
+        "Benign": 101,
+        "DoS": 1
+      },
+      "autoencoder_recall": 0.00980392156862745,
+      "iforest_recall": 0.0,
+      "fused_recall": 0.0196078431372549,
+      "fused_iforest_recall": 0.00980392156862745,
+      "supervised_benign_fpr": 1.0459047599125624e-05,
+      "fused_benign_fpr": 0.010166194266350107,
+      "known_families_macro_f1": 0.8557459545083956
+    }
+  },
+  "unsw": {
+    "n_features": 79,
+    "test_flows": 521219,
+    "cic_autoencoder_as_is": {
+      "roc_auc": 0.35999495071932974,
+      "pr_auc": 0.023577407320084433,
+      "benign_fpr": 0.9891316184958509,
+      "attack_recall": 0.7457962413452027,
+      "per_label_recall": {
+        "Analysis": {
+          "recall": 1.0,
+          "flows": 75
+        },
+        "Backdoor": {
+          "recall": 0.8620689655172413,
+          "flows": 87
+        },
+        "DoS": {
+          "recall": 0.8321759259259259,
+          "flows": 864
+        },
+        "Exploits": {
+          "recall": 0.8549878345498784,
+          "flows": 6165
+        },
+        "Fuzzers": {
+          "recall": 0.6269223466869186,
+          "flows": 5267
+        },
+        "Generic": {
+          "recall": 0.9136363636363637,
+          "flows": 880
+        },
+        "Reconnaissance": {
+          "recall": 0.5814830330959363,
+          "flows": 2387
+        },
+        "Shellcode": {
+          "recall": 0.9900990099009901,
+          "flows": 404
+        },
+        "Worms": {
+          "recall": 0.6382978723404256,
+          "flows": 47
+        }
+      }
+    },
+    "cic_autoencoder_rethresholded": {
+      "roc_auc": 0.35999495071932974,
+      "pr_auc": 0.023577407320084433,
+      "benign_fpr": 0.008244842518359823,
+      "attack_recall": 0.0013600395647873392,
+      "per_label_recall": {
+        "Analysis": {
+          "recall": 0.0,
+          "flows": 75
+        },
+        "Backdoor": {
+          "recall": 0.0,
+          "flows": 87
+        },
+        "DoS": {
+          "recall": 0.003472222222222222,
+          "flows": 864
+        },
+        "Exploits": {
+          "recall": 0.00210867802108678,
+          "flows": 6165
+        },
+        "Fuzzers": {
+          "recall": 0.000569584203531422,
+          "flows": 5267
+        },
+        "Generic": {
+          "recall": 0.003409090909090909,
+          "flows": 880
+        },
+        "Reconnaissance": {
+          "recall": 0.0,
+          "flows": 2387
+        },
+        "Shellcode": {
+          "recall": 0.0,
+          "flows": 404
+        },
+        "Worms": {
+          "recall": 0.0,
+          "flows": 47
+        }
+      }
+    },
+    "unsw_autoencoder_benign_only": {
+      "roc_auc": 0.9142657924306993,
+      "pr_auc": 0.353445561297655,
+      "benign_fpr": 0.010589197355472701,
+      "attack_recall": 0.3309841740850643,
+      "per_label_recall": {
+        "Analysis": {
+          "recall": 0.26666666666666666,
+          "flows": 75
+        },
+        "Backdoor": {
+          "recall": 0.5287356321839081,
+          "flows": 87
+        },
+        "DoS": {
+          "recall": 0.4201388888888889,
+          "flows": 864
+        },
+        "Exploits": {
+          "recall": 0.5302514193025142,
+          "flows": 6165
+        },
+        "Fuzzers": {
+          "recall": 0.18017846971710652,
+          "flows": 5267
+        },
+        "Generic": {
+          "recall": 0.6443181818181818,
+          "flows": 880
+        },
+        "Reconnaissance": {
+          "recall": 0.040636782572266446,
+          "flows": 2387
+        },
+        "Shellcode": {
+          "recall": 0.09158415841584158,
+          "flows": 404
+        },
+        "Worms": {
+          "recall": 0.1276595744680851,
+          "flows": 47
+        }
+      }
+    },
+    "unsw_iforest_benign_only": {
+      "roc_auc": 0.9086608842419119,
+      "pr_auc": 0.17228025561140506,
+      "benign_fpr": 0.007963678340260136,
+      "attack_recall": 0.06565281899109793,
+      "per_label_recall": {
+        "Analysis": {
+          "recall": 0.0,
+          "flows": 75
+        },
+        "Backdoor": {
+          "recall": 0.011494252873563218,
+          "flows": 87
+        },
+        "DoS": {
+          "recall": 0.0775462962962963,
+          "flows": 864
+        },
+        "Exploits": {
+          "recall": 0.01735604217356042,
+          "flows": 6165
+        },
+        "Fuzzers": {
+          "recall": 0.0937915321815075,
+          "flows": 5267
+        },
+        "Generic": {
+          "recall": 0.22954545454545455,
+          "flows": 880
+        },
+        "Reconnaissance": {
+          "recall": 0.013824884792626729,
+          "flows": 2387
+        },
+        "Shellcode": {
+          "recall": 0.38366336633663367,
+          "flows": 404
+        },
+        "Worms": {
+          "recall": 0.06382978723404255,
+          "flows": 47
+        }
+      }
+    }
+  }
+}

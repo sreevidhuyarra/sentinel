@@ -1,0 +1,115 @@
+# Single source of pipeline parameters. DVC tracks changes to these keys;
+# src/sentinel/common/config.py loads and validates them with Pydantic.
+
+seed: 42
+
+data:
+  raw_dir: data/raw/cicids2017
+  interim_dir: data/interim
+  processed_dir: data/processed
+  reference_dir: data/reference
+  reports_dir: reports
+  # How to treat the corrected release's "X - Attempted" flows (attack attempts
+  # that carried no malicious payload): benign | drop | keep
+  attempted_policy: benign
+  # Fraction of rows kept when building the dev sample (make data-sample).
+  dev_sample_frac: 0.1
+
+split:
+  # Chronological split applied separately inside every (day, label) group so
+  # each attack campaign contributes early flows to train and later flows to test.
+  train_frac: 0.6
+  val_frac: 0.2
+  # Rows discarded at each boundary so near-duplicate neighbouring flows of
+  # one session don't straddle two splits.
+  gap_rows: 50
+  # Families removed from supervised training, one at a time, to score the
+  # anomaly detector on attacks it has never seen (module 2).
+  holdout_families: [Infiltration, Bot, WebAttack]
+
+features:
+  log_transform: true
+  drop_constant: true
+
+ids:
+  # Decision rule: flag a flow as an attack only if it keeps benign FPR on validation
+  # at or below this target (false positives cost analyst time).
+  benign_fpr_target: 0.01
+  # Per-class weight = (n_largest / n_class) ** power, capped. 0 = unweighted,
+  # 1 = inverse frequency. Chosen by the imbalance study.
+  class_weight_power: 0.5
+  max_class_weight: 1000
+  # Calibrated attack-probability cut points for Low / Medium / High / Critical.
+  severity_bands: [0.6, 0.8, 0.95]
+  # Tuning budget per model family: whichever of the two limits is hit first.
+  tune_trials: 30
+  tune_timeout_minutes: 60
+  # Tuned with `sentinel ids tune --sample full` (Optuna, validation macro-F1 under the
+  # deployed decision rule); see reports/ids/tuning_*_full.json. Rounded; n_estimators
+  # is a cap for early stopping. Dev-sample tuning (tuning_*_dev.json) is NOT used: rare
+  # classes are ~10x over-represented there, which favoured settings that overfit them.
+  lightgbm:
+    n_estimators: 2000
+    learning_rate: 0.037
+    num_leaves: 75
+    min_child_samples: 107
+    feature_fraction: 0.86
+    bagging_fraction: 0.98
+    lambda_l1: 0.0068
+    lambda_l2: 0.71
+    early_stopping_rounds: 100
+    class_weight_power: 0.22
+  xgboost:
+    n_estimators: 2000
+    learning_rate: 0.065
+    max_depth: 4
+    min_child_weight: 4.67
+    subsample: 0.53
+    colsample_bytree: 0.73
+    reg_alpha: 0.00002
+    reg_lambda: 0.0002
+    early_stopping_rounds: 100
+    class_weight_power: 0.18
+  mlp:
+    hidden: [256, 128, 64]
+    dropout: 0.2
+    lr: 0.001
+    weight_decay: 0.0001
+    batch_size: 2048
+    epochs: 30
+    patience: 6
+    # 0 = plain cross-entropy. The imbalance study (reports/ids/imbalance.md) found focal
+    # loss (gamma=2) scored lower on validation macro-F1 than cross-entropy with sqrt weights.
+    focal_gamma: 0.0
+
+anomaly:
+  # Share of benign validation flows allowed above the anomaly threshold. In the fused
+  # detector this is extra benign FPR on top of the supervised model's.
+  fpr_target: 0.01
+  # Also reported, so the recall / false-alarm trade-off is visible.
+  fpr_sweep: [0.001, 0.005, 0.01, 0.02]
+  autoencoder:
+    hidden: [64, 32]
+    # Candidate code sizes; the one with the best validation ROC-AUC (benign vs known
+    # attacks) is kept.
+    bottleneck_sweep: [8, 12, 16]
+    lr: 0.001
+    weight_decay: 0.00001
+    batch_size: 4096
+    epochs: 30
+    patience: 3
+  iforest:
+    n_estimators: 200
+    max_samples: 256
+    train_rows: 200000
+
+phishing:
+  raw_dir: data/raw/phishing_emails
+  processed_dir: data/processed/phishing
+  # Folder to upload to Kaggle as a private dataset (train/val/test parquet + metadata).
+  kaggle_dir: kaggle/phishing-emails
+  # Characters of body kept per email; far beyond the model's 256-token window, so no
+  # signal is lost, while keeping the upload small.
+  max_chars: 3000
+  # Grouped, label-stratified split: 5 folds -> 3 train, 1 validation, 1 test.
+  n_folds: 5

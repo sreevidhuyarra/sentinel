@@ -1,0 +1,72 @@
+{
+  "LightGBM, unweighted": {
+    "val_macro_f1": 0.7153050640017142,
+    "test_macro_f1": 0.7081337401771625,
+    "test_benign_fpr": 0.00043947128224197966,
+    "recall_Infiltration": 0.0,
+    "recall_WebAttack": 0.7727272727272727,
+    "recall_Bot": 0.9436619718309859,
+    "train_rows": 111515,
+    "seconds": 8.445882900006836
+  },
+  "LightGBM, sqrt class weights": {
+    "val_macro_f1": 0.9998262627794048,
+    "test_macro_f1": 0.9909568927874541,
+    "test_benign_fpr": 0.0001352219329975322,
+    "recall_Infiltration": 1.0,
+    "recall_WebAttack": 1.0,
+    "recall_Bot": 1.0,
+    "train_rows": 111515,
+    "seconds": 18.965791399998125
+  },
+  "LightGBM, inverse-frequency weights": {
+    "val_macro_f1": 0.9996552501759968,
+    "test_macro_f1": 0.9965900737069533,
+    "test_benign_fpr": 3.380548324938305e-05,
+    "recall_Infiltration": 1.0,
+    "recall_WebAttack": 1.0,
+    "recall_Bot": 1.0,
+    "train_rows": 111515,
+    "seconds": 10.207251200001338
+  },
+  "LightGBM, random oversampling": {
+    "val_macro_f1": 0.996707520550848,
+    "test_macro_f1": 0.9933980554629127,
+    "test_benign_fpr": 3.380548324938305e-05,
+    "recall_Infiltration": 1.0,
+    "recall_WebAttack": 0.9545454545454546,
+    "recall_Bot": 1.0,
+    "train_rows": 117746,
+    "seconds": 13.491019799999776
+  },
+  "LightGBM, SMOTE": {
+    "val_macro_f1": 0.9994303439492678,
+    "test_macro_f1": 0.994119151454984,
+    "test_benign_fpr": 6.76109664987661e-05,
+    "recall_Infiltration": 1.0,
+    "recall_WebAttack": 0.9545454545454546,
+    "recall_Bot": 1.0,
+    "train_rows": 117746,
+    "seconds": 11.299681799995597
+  },
+  "MLP, cross-entropy + sqrt weights": {
+    "val_macro_f1": 0.9798994169937187,
+    "test_macro_f1": 0.954119732389521,
+    "test_benign_fpr": 0.0030762989756938576,
+    "recall_Infiltration": 0.875,
+    "recall_WebAttack": 0.8636363636363636,
+    "recall_Bot": 1.0,
+    "train_rows": 111515,
+    "seconds": 13.40918529999908
+  },
+  "MLP, focal loss (gamma=2) + sqrt weights": {
+    "val_macro_f1": 0.9492904779035194,
+    "test_macro_f1": 0.888757279514705,
+    "test_benign_fpr": 0.0024339947939555798,
+    "recall_Infiltration": 0.25,
+    "recall_WebAttack": 0.8636363636363636,
+    "recall_Bot": 0.971830985915493,
+    "train_rows": 111515,
+    "seconds": 11.602452799997991
+  }
+}

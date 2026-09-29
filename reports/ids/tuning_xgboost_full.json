@@ -1,0 +1,18 @@
+{
+  "family": "xgboost",
+  "sample": "full",
+  "n_trials": 18,
+  "timeout_minutes": 60.0,
+  "best_val_macro_f1": 0.9999570306110237,
+  "best_params": {
+    "class_weight_power": 0.18222256129959222,
+    "learning_rate": 0.06509631937293411,
+    "max_depth": 4,
+    "min_child_weight": 4.672183782234677,
+    "subsample": 0.5255832452033343,
+    "colsample_bytree": 0.7279925235347755,
+    "reg_alpha": 1.828720734470508e-05,
+    "reg_lambda": 0.00019544905074606343,
+    "rounds": 502
+  }
+}
