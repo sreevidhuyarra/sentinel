@@ -14,7 +14,7 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
 - [x] Module 2 — anomaly detection: autoencoder (bottleneck 8) + Isolation Forest baseline on benign
       flows; fusion into `sentinel.detection.fusion.Detector` ("Unknown anomaly"); held-out-family and
       UNSW benign-only studies; `anomaly-detector` in MLflow; API serves the fused verdict
-- [ ] Module 3 — phishing email + URL classifier (DeBERTa LoRA → ONNX int8)
+- [x] Module 3 — phishing email + URL classifier (DeBERTa LoRA → ONNX int8); CI green on 76b688c
   - [x] data: `sentinel phishing download|prepare` (Zenodo 8339691, 200k emails, grouped split, DVC stage
         `prepare_phishing`) → Kaggle upload folder `kaggle/phishing-emails/`
   - [x] Kaggle notebook `notebooks/phishing_lora_kaggle.ipynb` (built from the `.py` with
@@ -25,7 +25,9 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
   - [x] URL model: `sentinel phishing url-train` / DVC `train_url` (PhiUSIIL + Hannousse; ISCX-URL2016 is
         form-gated and its mirrors lack raw URLs), `url-classifier` v3 @production, `POST /score/url`;
         combined email verdict evaluated — links left out (email_threshold None), see url_results.md
-- [ ] Module 4 — adversarial robustness (ART)
+- [x] Module 4 — adversarial robustness (ART): `sentinel adversarial run` / DVC `robustness`
+      (feature-space FGSM/PGD + transfer, HopSkipJump, problem-space pad×delay; defenses:
+      adversarially trained MLP, hardened LightGBMs, review flag) → reports/adversarial/results.md
 - [ ] Module 5 — SOC copilot (LangGraph, RAG, injection guard)
 - [ ] Module 6 — MLOps (Prometheus/Grafana, Evidently, Prefect) + streaming detector + React dashboard
 
@@ -68,6 +70,19 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
 - 'X - Attempted' labels (no payload) → Benign by default (`data.attempted_policy`).
 - 'Infiltration - Portscan' (~72k) → PortScan family; true Infiltration is only 36 flows.
 - Rare classes: Heartbleed 11, WebAttack ~100, Infiltration 36 — use macro-F1 / per-class recall.
+
+## Module 4 notes
+- Threat model in `sentinel.adversarial.threat`: only CONTROLLABLE features move (44/84), TIMING and
+  OWN_SIZE increase-only; `project()` enforces this after every attack step. Budgets are L-inf in
+  the MLP scaler's z-space; transfer to LightGBM via `X0 + (Z_adv - Z0) * scale`.
+- `pad_and_delay()` must keep dependent features consistent (rates, means, variance, max);
+  unit tests guard it. Budget names are free: code uses the largest (`top`), never "high".
+- Evasion counts only targets the detector caught clean. ART HSJ needs `init_eval < max_eval`.
+- Findings: white-box PGD evades the MLP 95% at eps 0.5; ~55% transfers to LightGBM/ensemble at
+  eps ≥ 1. Adversarial training helps at eps ≤ 0.5 only (no clean cost). Review flag (disagreement
+  or AE anomaly, 1.4% benign to review) is the best defense: ≤5.5% feature-space, 3.5% realistic.
+  Realistic high budget: Bot 94% evades ensemble (pad+delay combined only), PortScan 41% (delay),
+  16% of PortScan beats the review flag — weakest spot. Dropping timing: 20.8% → 9.4%, −1.2 pt F1.
 
 ## Module 3 notes
 - Label 1 = phishing only for Nazario*, fraud for Nigerian*, spam elsewhere → `kind` column; report

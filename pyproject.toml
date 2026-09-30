@@ -32,6 +32,8 @@ dependencies = [
     "onnx>=1.16",
     "onnxscript>=0.3",
     "onnxruntime>=1.19",
+    # Module 4: adversarial robustness
+    "adversarial-robustness-toolbox>=1.18",
     # Serving
     "fastapi>=0.115",
     "uvicorn>=0.30",

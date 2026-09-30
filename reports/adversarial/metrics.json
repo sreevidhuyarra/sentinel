@@ -1,0 +1,6 @@
+{
+  "pgd_mlp_eps0.5": 0.9520488230165649,
+  "pgd_mlp_adv_eps0.5": 0.4469370146678171,
+  "problem_top_ensemble": 0.20836891545687447,
+  "problem_top_ensemble_review": 0.035012809564474806
+}

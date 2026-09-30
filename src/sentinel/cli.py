@@ -223,6 +223,20 @@ def phishing_notebook(
     typer.echo(script_to_notebook(src, dst))
 
 
+adversarial_app = typer.Typer(no_args_is_help=True, help="Module 4: adversarial robustness.")
+app.add_typer(adversarial_app, name="adversarial")
+
+
+@adversarial_app.command("run")
+def adversarial_run(params_file: Path | None = None) -> None:
+    """Attack the deployed detectors, train the defenses, write reports/adversarial/."""
+    from sentinel.adversarial.run import run
+
+    out = run(load_params(params_file))
+    typer.echo(json.dumps(out["problem_space"], indent=2))
+    typer.echo("wrote reports/adversarial/results.md")
+
+
 @app.command()
 def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
     """Run the FastAPI gateway (loads ids-classifier@production from MLflow)."""

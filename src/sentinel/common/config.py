@@ -127,6 +127,27 @@ class PhishingParams(BaseModel):
     url_email_extra_fpr: float = Field(0.005, ge=0, lt=1)
 
 
+class AdversarialParams(BaseModel):
+    per_family: int = 250
+    eps: list[float] = Field(default_factory=lambda: [0.1, 0.25, 0.5, 1.0, 2.0])
+    pgd_iter: int = 20
+    hsj_samples: int = 80
+    hsj_max_iter: int = 10
+    hsj_max_eval: int = 400
+    pads: list[float] = Field(default_factory=lambda: [0.0, 0.05, 0.1, 0.25, 0.5, 1.0])
+    delays: list[float] = Field(default_factory=lambda: [1.0, 1.25, 1.5, 2.0, 3.0, 5.0, 10.0])
+    budgets: dict[str, tuple[float, float]] = Field(
+        default_factory=lambda: {"low": (0.1, 1.5), "medium": (0.5, 3.0), "high": (1.0, 10.0)}
+    )
+    adv_train_eps: float = 0.5
+    adv_train_steps: int = 5
+    adv_train_epochs: int = 3
+    adv_train_lr: float = 3e-4
+    adv_train_per_class: int = 40_000
+    adv_train_benign: int = 150_000
+    review_budget: float = Field(0.01, gt=0, lt=1)
+
+
 class Params(BaseModel):
     seed: int = 42
     data: DataParams
@@ -135,6 +156,7 @@ class Params(BaseModel):
     ids: IDSParams = IDSParams()
     anomaly: AnomalyParams = AnomalyParams()
     phishing: PhishingParams = PhishingParams()
+    adversarial: AdversarialParams = AdversarialParams()
 
     def resolve(self, path: Path) -> Path:
         return path if path.is_absolute() else PROJECT_ROOT / path

@@ -28,6 +28,23 @@ wheels = [
 ]
 
 [[package]]
+name = "adversarial-robustness-toolbox"
+version = "1.20.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+    { name = "setuptools" },
+    { name = "six" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fb/a2/6eb94da010d08f05d03cdfbc53c92b15f56b943cca93893715f56dace5fa/adversarial_robustness_toolbox-1.20.1.tar.gz", hash = "sha256:5bfd751a1b1a1a2a669d961f7df0de7a9e3d95e5695e7a75ee6748cd5a339203", size = 2909075, upload-time = "2025-07-07T19:53:18.037Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f8/07/29795237eb3b0aeeed172ab72457015578b228ca8913bbc6b7cedfb51d28/adversarial_robustness_toolbox-1.20.1-py3-none-any.whl", hash = "sha256:03b15b35d2a1a564a436b023ad90968d64542e3ff191c668bffb8207f38683f5", size = 1109371, upload-time = "2025-07-07T19:53:16.023Z" },
+]
+
+[[package]]
 name = "aiohappyeyeballs"
 version = "2.7.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2542,6 +2559,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "accelerate" },
+    { name = "adversarial-robustness-toolbox" },
     { name = "fastapi" },
     { name = "imbalanced-learn" },
     { name = "lightgbm" },
@@ -2587,6 +2605,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "accelerate", specifier = ">=0.33" },
+    { name = "adversarial-robustness-toolbox", specifier = ">=1.18" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "imbalanced-learn", specifier = ">=0.12" },
     { name = "lightgbm", specifier = ">=4.5" },

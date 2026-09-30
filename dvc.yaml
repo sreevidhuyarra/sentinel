@@ -137,6 +137,25 @@ stages:
       - reports/phishing/url_metrics.json:
           cache: false
 
+  # Module 4: attack the deployed network detectors (ART FGSM/PGD, HopSkipJump, realistic
+  # padding + delay), train defenses, measure both. Needs MLflow up.
+  robustness:
+    cmd: sentinel adversarial run
+    deps:
+      - data/processed/flows.parquet
+      - data/processed/feature_spec.json
+      - models/ids
+      - models/anomaly
+      - src/sentinel/adversarial
+    params:
+      - seed
+      - adversarial
+    outs:
+      - models/adversarial
+    metrics:
+      - reports/adversarial/metrics.json:
+          cache: false
+
   # Goal G3: train on CIC-IDS2017, score CIC-UNSW-NB15 unchanged. Needs MLflow up.
   cross_dataset:
     cmd: sentinel ids cross-dataset

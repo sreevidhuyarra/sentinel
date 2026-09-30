@@ -488,3 +488,86 @@ stages:
       hash: md5
       md5: 1319883e22691c3b825e45eb497e0e67
       size: 179
+  robustness:
+    cmd: sentinel adversarial run
+    deps:
+    - path: data/processed/feature_spec.json
+      hash: md5
+      md5: 77943abbde336139e209c1fde5dc0a5e
+      size: 3756
+    - path: data/processed/flows.parquet
+      hash: md5
+      md5: 6430f543132d8cff57fa0b15291ee8c7
+      size: 265107928
+    - path: models/anomaly
+      hash: md5
+      md5: ce25050889e5654c4f81b0029f86be49.dir
+      size: 74715
+      nfiles: 4
+    - path: models/ids
+      hash: md5
+      md5: e9af1f062067de6d8e46fc1363cadc38.dir
+      size: 5258809
+      nfiles: 5
+    - path: src/sentinel/adversarial
+      hash: md5
+      md5: 8f25e39367df895ee13e29b481c97935.dir
+      size: 39485
+      nfiles: 6
+    params:
+      params.yaml:
+        adversarial:
+          per_family: 250
+          eps:
+          - 0.1
+          - 0.25
+          - 0.5
+          - 1.0
+          - 2.0
+          pgd_iter: 20
+          hsj_samples: 80
+          hsj_max_iter: 10
+          hsj_max_eval: 400
+          pads:
+          - 0.0
+          - 0.05
+          - 0.1
+          - 0.25
+          - 0.5
+          - 1.0
+          delays:
+          - 1.0
+          - 1.25
+          - 1.5
+          - 2.0
+          - 3.0
+          - 5.0
+          - 10.0
+          budgets:
+            low:
+            - 0.1
+            - 1.5
+            medium:
+            - 0.5
+            - 3.0
+            high:
+            - 1.0
+            - 10.0
+          adv_train_eps: 0.5
+          adv_train_steps: 5
+          adv_train_epochs: 3
+          adv_train_lr: 0.0003
+          adv_train_per_class: 40000
+          adv_train_benign: 150000
+          review_budget: 0.01
+        seed: 42
+    outs:
+    - path: models/adversarial
+      hash: md5
+      md5: a212e4c85acf082d1e5b28d7ee9e586d.dir
+      size: 7866742
+      nfiles: 5
+    - path: reports/adversarial/metrics.json
+      hash: md5
+      md5: 1fda7b45af45f86176edb9821d452150
+      size: 193

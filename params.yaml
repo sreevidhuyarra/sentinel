@@ -133,3 +133,28 @@ phishing:
   url_max_features: 50000
   # Links may add at most this much to the email false-alarm rate on validation.
   url_email_extra_fpr: 0.005
+
+adversarial:
+  # Attack flows (test split, caught by the deployed ensemble) sampled per family.
+  per_family: 250
+  # Feature-space L-inf budgets, in training standard deviations of each feature.
+  eps: [0.1, 0.25, 0.5, 1.0, 2.0]
+  pgd_iter: 20
+  hsj_samples: 80
+  hsj_max_iter: 10
+  hsj_max_eval: 400
+  # Problem-space grid: forward-payload padding fraction x timing stretch factor.
+  pads: [0.0, 0.05, 0.1, 0.25, 0.5, 1.0]
+  delays: [1.0, 1.25, 1.5, 2.0, 3.0, 5.0, 10.0]
+  budgets:
+    low: [0.1, 1.5]
+    medium: [0.5, 3.0]
+    high: [1.0, 10.0]
+  adv_train_eps: 0.5
+  adv_train_steps: 5
+  adv_train_epochs: 3
+  adv_train_lr: 0.0003
+  adv_train_per_class: 40000
+  adv_train_benign: 150000
+  # Share of benign validation flows the disagreement flag may send to review.
+  review_budget: 0.01
