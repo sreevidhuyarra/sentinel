@@ -82,12 +82,59 @@ stages:
       - src/sentinel/phishing/text.py
     params:
       - seed
-      - phishing
+      - phishing.max_chars
+      - phishing.n_folds
     outs:
       - data/processed/phishing
       - kaggle/phishing-emails
     metrics:
       - reports/phishing/data_summary.json:
+          cache: false
+
+  # Module 3 model: Kaggle LoRA output -> merged ONNX, int8, before/after benchmark,
+  # registers phishing-classifier. Needs MLflow up.
+  build_phishing:
+    cmd: sentinel phishing build
+    deps:
+      - models/phishing/phishing_lora_output
+      - kaggle/phishing-emails
+      - src/sentinel/phishing/export.py
+      - src/sentinel/phishing/build.py
+      - src/sentinel/phishing/report.py
+      - src/sentinel/phishing/registry.py
+    params:
+      - seed
+      - phishing.max_len
+      - phishing.fpr_budget
+      - phishing.quantization
+      - phishing.benchmark_emails
+    outs:
+      - models/phishing/bundle
+      - models/phishing/work
+    metrics:
+      - reports/phishing/metrics.json:
+          cache: false
+
+  # Module 3 URL model (PhiUSIIL + Hannousse) and the combined email + URL study.
+  # Needs MLflow up; registers url-classifier.
+  train_url:
+    cmd: sentinel phishing url-train
+    deps:
+      - data/raw/phishing_urls
+      - data/processed/phishing
+      - models/phishing/phishing_lora_output
+      - models/phishing/bundle
+      - src/sentinel/phishing/urls.py
+      - src/sentinel/phishing/url_train.py
+    params:
+      - seed
+      - phishing.url_fpr_budget
+      - phishing.url_max_features
+      - phishing.url_email_extra_fpr
+    outs:
+      - models/phishing/url_bundle
+    metrics:
+      - reports/phishing/url_metrics.json:
           cache: false
 
   # Goal G3: train on CIC-IDS2017, score CIC-UNSW-NB15 unchanged. Needs MLflow up.

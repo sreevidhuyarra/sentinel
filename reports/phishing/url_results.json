@@ -1,0 +1,274 @@
+{
+  "rows": {
+    "train": 145556,
+    "val": 48518,
+    "test": 48518
+  },
+  "by_source_rows": {
+    "Hannousse_legitimate": 5538,
+    "Hannousse_malicious": 5307,
+    "PhiUSIIL_legitimate": 134807,
+    "PhiUSIIL_malicious": 96940
+  },
+  "threshold": 0.9995644169534785,
+  "fpr_budget": 0.01,
+  "train_seconds": 504.2870142000029,
+  "test": {
+    "roc_auc": 0.9986291945474949,
+    "pr_auc": 0.9984651197957958,
+    "f1": 0.5121321255775038,
+    "false_alarm_rate": 3.562649185934661e-05,
+    "recall": 0.34422221135507847
+  },
+  "test_by_source": {
+    "Hannousse": {
+      "roc_auc": 0.9793014219267294,
+      "pr_auc": 0.979293948504696,
+      "f1": 0.5570652173913043,
+      "false_alarm_rate": 0.0009025270758122744,
+      "recall": 0.38642789820923656
+    },
+    "PhiUSIIL": {
+      "roc_auc": 0.9991193256117061,
+      "pr_auc": 0.9992359572852788,
+      "f1": 0.5095898835376869,
+      "false_alarm_rate": 0.0,
+      "recall": 0.34191252321023313
+    }
+  },
+  "unweighted": {
+    "test": {
+      "roc_auc": 0.9987483479061551,
+      "pr_auc": 0.9985674123889311,
+      "f1": 0.6260875407302899,
+      "false_alarm_rate": 3.562649185934661e-05,
+      "recall": 0.45571910606875643
+    },
+    "test_by_source": {
+      "Hannousse": {
+        "roc_auc": 0.9671441015049491,
+        "pr_auc": 0.9668129802807541,
+        "f1": 0.4664259927797834,
+        "false_alarm_rate": 0.0009025270758122744,
+        "recall": 0.30442978322337416
+      },
+      "PhiUSIIL": {
+        "roc_auc": 0.9993583331712963,
+        "pr_auc": 0.9994345826858123,
+        "f1": 0.6338782412626832,
+        "false_alarm_rate": 0.0,
+        "recall": 0.4639983494945327
+      }
+    },
+    "email_study": {
+      "learned_fusion": {
+        "weights": {
+          "text_logit": 0.5394637748681554,
+          "link_logit": 0.20541658130461116,
+          "has_link": 0.22268451538607067
+        },
+        "rows": [
+          {
+            "budget": 0.005,
+            "method": "text only",
+            "false_alarm_rate": 0.0008530482256596906,
+            "recall": 0.841052802248284,
+            "phishing": 0.656957928802589
+          },
+          {
+            "budget": 0.005,
+            "method": "learned text + link",
+            "false_alarm_rate": 0.0018198362147406734,
+            "recall": 0.8644544127979247,
+            "phishing": 0.6828478964401294
+          },
+          {
+            "budget": 0.01,
+            "method": "text only",
+            "false_alarm_rate": 0.001364877161055505,
+            "recall": 0.8547803058963411,
+            "phishing": 0.6828478964401294
+          },
+          {
+            "budget": 0.01,
+            "method": "learned text + link",
+            "false_alarm_rate": 0.0023316651501364876,
+            "recall": 0.8763443765875804,
+            "phishing": 0.7022653721682848
+          },
+          {
+            "budget": 0.02,
+            "method": "text only",
+            "false_alarm_rate": 0.002900363967242948,
+            "recall": 0.8943414581419229,
+            "phishing": 0.7766990291262136
+          },
+          {
+            "budget": 0.02,
+            "method": "learned text + link",
+            "false_alarm_rate": 0.007336214740673339,
+            "recall": 0.9082310976598389,
+            "phishing": 0.7896440129449838
+          }
+        ]
+      },
+      "emails": 36087,
+      "with_urls": 15491,
+      "urls_scored": 35407,
+      "email_url_threshold": 0.9999,
+      "extra_fpr_budget": 0.005,
+      "text_only": {
+        "false_alarm_rate": 0.0031278434940855324,
+        "recall": 0.8965573150299951,
+        "f1": 0.9439781489174041,
+        "caught_by_kind": {
+          "fraud": 0.9030769230769231,
+          "phishing": 0.7766990291262136,
+          "spam": 0.8984268125854993
+        }
+      },
+      "url_only": {
+        "false_alarm_rate": 0.0,
+        "recall": 0.0002161811598119224,
+        "f1": 0.00043226887123790997,
+        "caught_by_kind": {
+          "fraud": 0.0,
+          "phishing": 0.0,
+          "spam": 0.00022799817601459188
+        }
+      },
+      "text_or_url": {
+        "false_alarm_rate": 0.0031278434940855324,
+        "recall": 0.8965573150299951,
+        "f1": 0.9439781489174041,
+        "caught_by_kind": {
+          "fraud": 0.9030769230769231,
+          "phishing": 0.7766990291262136,
+          "spam": 0.8984268125854993
+        }
+      },
+      "text_or_url_untuned": {
+        "false_alarm_rate": 0.015297998180163785,
+        "recall": 0.8996378965573151,
+        "f1": 0.9399740245073127,
+        "caught_by_kind": {
+          "fraud": 0.9138461538461539,
+          "phishing": 0.8025889967637541,
+          "spam": 0.9008207934336525
+        }
+      }
+    }
+  },
+  "baseline_logreg_tfidf": {
+    "roc_auc": 0.9267132120769274,
+    "pr_auc": 0.9261665339081364,
+    "f1": 0.7485709100807549,
+    "false_alarm_rate": 0.00851473155438384,
+    "recall": 0.6051640667025282
+  },
+  "cross_dataset_phiusiil_to_hannousse": {
+    "roc_auc": 0.6611394267048373,
+    "pr_auc": 0.6223567869979225,
+    "f1": 0.6574407347648008,
+    "false_alarm_rate": 0.9949440231130372,
+    "recall": 0.9981156962502356
+  },
+  "email_study": {
+    "learned_fusion": {
+      "weights": {
+        "text_logit": 0.5394738456970632,
+        "link_logit": 0.13858435376955985,
+        "has_link": 0.4218678269230507
+      },
+      "rows": [
+        {
+          "budget": 0.005,
+          "method": "text only",
+          "false_alarm_rate": 0.0008530482256596906,
+          "recall": 0.841052802248284,
+          "phishing": 0.656957928802589
+        },
+        {
+          "budget": 0.005,
+          "method": "learned text + link",
+          "false_alarm_rate": 0.0015354868061874432,
+          "recall": 0.8650489109874074,
+          "phishing": 0.6893203883495146
+        },
+        {
+          "budget": 0.01,
+          "method": "text only",
+          "false_alarm_rate": 0.001364877161055505,
+          "recall": 0.8547803058963411,
+          "phishing": 0.6828478964401294
+        },
+        {
+          "budget": 0.01,
+          "method": "learned text + link",
+          "false_alarm_rate": 0.0019904458598726115,
+          "recall": 0.8773171918067341,
+          "phishing": 0.6990291262135923
+        },
+        {
+          "budget": 0.02,
+          "method": "text only",
+          "false_alarm_rate": 0.002900363967242948,
+          "recall": 0.8943414581419229,
+          "phishing": 0.7766990291262136
+        },
+        {
+          "budget": 0.02,
+          "method": "learned text + link",
+          "false_alarm_rate": 0.005857597816196543,
+          "recall": 0.9070421012808734,
+          "phishing": 0.7799352750809061
+        }
+      ]
+    },
+    "emails": 36087,
+    "with_urls": 15491,
+    "urls_scored": 35407,
+    "email_url_threshold": null,
+    "extra_fpr_budget": 0.005,
+    "text_only": {
+      "false_alarm_rate": 0.0031278434940855324,
+      "recall": 0.8965573150299951,
+      "f1": 0.9439781489174041,
+      "caught_by_kind": {
+        "fraud": 0.9030769230769231,
+        "phishing": 0.7766990291262136,
+        "spam": 0.8984268125854993
+      }
+    },
+    "url_only": {
+      "false_alarm_rate": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "caught_by_kind": {
+        "fraud": 0.0,
+        "phishing": 0.0,
+        "spam": 0.0
+      }
+    },
+    "text_or_url": {
+      "false_alarm_rate": 0.0031278434940855324,
+      "recall": 0.8965573150299951,
+      "f1": 0.9439781489174041,
+      "caught_by_kind": {
+        "fraud": 0.9030769230769231,
+        "phishing": 0.7766990291262136,
+        "spam": 0.8984268125854993
+      }
+    },
+    "text_or_url_untuned": {
+      "false_alarm_rate": 0.017459053685168334,
+      "recall": 0.8990433983678322,
+      "f1": 0.9386373254337707,
+      "caught_by_kind": {
+        "fraud": 0.9046153846153846,
+        "phishing": 0.7993527508090615,
+        "spam": 0.9005927952576379
+      }
+    }
+  }
+}

@@ -242,7 +242,7 @@ Benign false alarms go from 0.001% (supervised alone) to 1.0% with the autoencod
   on UNSW's benign traffic alone, which needs no labelling, it reaches 0.914. On a new network,
   this is the detector you can have on day one.
 
-## Module 3: phishing email classifier (in progress)
+## Module 3: phishing email classifier
 
 `uv run sentinel phishing download` fetches the Phishing Email Curated Datasets (11 public
 corpora, [Zenodo 8339691](https://doi.org/10.5281/zenodo.8339691), CC BY 4.0) and
@@ -257,8 +257,83 @@ Fine-tuning DeBERTa-v3-small with LoRA needs a GPU and runs on Kaggle:
 2. Kaggle → Create → New Notebook → File → Import Notebook →
    `notebooks/phishing_lora_kaggle.ipynb`.
 3. Session options: Accelerator **GPU T4 x2**, Internet **On**; Add Input → your dataset.
-4. Run All (~30–60 min), then download `phishing_lora_output.zip` from Output into
-   `models/phishing/`.
+4. Save Version → Save & Run All (~75 min on 2× T4), then download
+   `phishing_lora_output.zip` from Output and unzip it into `models/phishing/`.
+
+Then `uv run dvc repro build_phishing` (~11 min, CPU) merges the adapter, exports ONNX,
+quantizes it, benchmarks every variant and registers `phishing-classifier` in MLflow.
+Full tables: [reports/phishing/results.md](reports/phishing/results.md),
+[model card](reports/phishing/model_card.md).
+
+**Model.** DeBERTa-v3-small (141M parameters) with LoRA rank 16 on the attention
+projections (0.72% of weights trainable), 256 tokens of subject + body, 2 epochs.
+
+**Results (test split, 36,087 emails):**
+
+| Threshold | F1 | False alarms on legitimate mail | Malicious caught | Phishing caught |
+|---|---|---|---|---|
+| 0.5 | 0.970 | 3.99% | 97.6% | 93.2% |
+| **0.989 (deployed: 2% validation budget)** | **0.944** | **0.31%** | **89.7%** | **77.7%** |
+
+PR-AUC 0.997, ROC-AUC 0.997. A TF-IDF + logistic regression baseline on the same split
+reaches ROC-AUC 0.979 and cannot get its false alarms below ~2.7%.
+
+**Optimisation** (1,000 test emails, laptop CPU):
+
+| Model | Size | F1 | Verdicts changed | Latency p50 / p95 |
+|---|---|---|---|---|
+| PyTorch, float32 | — | 0.957 | — | 204 / 252 ms |
+| ONNX, float32 | 568 MB | 0.957 | 0 | 130 / 161 ms |
+| **ONNX, int8 embeddings (deployed)** | **273 MB** | **0.957** | **2** | **129 / 158 ms** |
+| ONNX, int8 everything | 165 MB | 0.872 | 85 | 87 / 113 ms |
+
+What we learned:
+
+- **ONNX alone gives the speed-up** (1.6× lower latency); quantizing the embedding table
+  halves the size at no accuracy cost. Full int8 is fastest, but DeBERTa's outlier
+  activations shift high probabilities enough to flip 85 of 1,000 verdicts at the deployed
+  threshold, so it is not used. The report's target of ≤1 F1 point with ≥2× speed and ~4×
+  size is not reachable on this model with dynamic int8.
+- **Export bugs a smoke test catches.** Transformers 5 loads the fp16 checkpoint as fp16
+  (breaks mixed-precision training, ~100× slower on CPU): load as float32. The legacy ONNX
+  exporter mistranslates DeBERTa's masked softmax: exact on unpadded input, wrong on padded
+  batches (logits off by up to 2). The `torch.export` exporter is exact; a regression test
+  guards it.
+- **Mostly spam, little phishing.** Only ~1,500 emails are true phishing, and phishing
+  recall is the weakest per kind, so it is reported separately rather than hidden in F1.
+
+`POST /score/phishing` takes `{subject, body, urls[]}` and returns the verdict,
+probability, severity, the URLs found, and the sentences whose removal most lowers the
+score, e.g. *"Dear customer,"* and *"Urgent: your account has been suspended"* for a
+credential-phishing email (~200 ms with explanation).
+
+### URL classifier
+
+`uv run dvc repro train_url` trains character 3–5-gram TF-IDF (on normalised URLs) plus 23
+lexical features (length, digit ratio, subdomains, entropy, suspicious TLD, IP host,
+shortener, sensitive words, ...) with LightGBM. Data: PhiUSIIL (UCI 967) + Hannousse &
+Yahiouche 2021, 242k raw URLs, split by registered domain. ISCX-URL2016, named in the
+design, sits behind a registration form, and its open mirrors carry only pre-computed
+features that serving could not reproduce. Report:
+[reports/phishing/url_results.md](reports/phishing/url_results.md).
+
+| Test URLs | ROC-AUC | False alarms on legitimate | Malicious caught |
+|---|---|---|---|
+| All (deployed, source-balanced) | 0.999 | 0.00% | 34.4% |
+| Hannousse only (realistic legitimate URLs) | 0.979 | 0.09% | 38.6% |
+| Trained on PhiUSIIL only, scored on Hannousse | 0.661 | 99.5% | 99.8% |
+
+- **Dataset shortcut.** Every legitimate PhiUSIIL URL is a bare homepage, so a model trained
+  on it learns "has a path → malicious": trained on PhiUSIIL alone it flags 99.5% of
+  Hannousse's legitimate URLs. Balancing the two sources and setting the threshold on
+  Hannousse's realistic legitimate URLs keeps false alarms at 0.09%, but the price is a
+  strict threshold that catches ~39% of malicious URLs. It works as a high-confidence link
+  checker (`POST /score/url`, with TreeSHAP reasons such as *"suspicious tld = 1"*).
+- **Links do not improve email verdicts.** Legitimate email links (newsletters, tracking,
+  documents) look unlike the training data's legitimate URLs. On validation, no URL
+  threshold let links flag emails while adding under 0.5 points of false alarms, so links
+  are shown but do not change the email verdict. A learned text + link combination adds only
+  ~1–2 points of malicious mail caught at matched false-alarm rates.
 
 ## API
 

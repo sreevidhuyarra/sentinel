@@ -113,3 +113,23 @@ phishing:
   max_chars: 3000
   # Grouped, label-stratified split: 5 folds -> 3 train, 1 validation, 1 test.
   n_folds: 5
+  # Output of the Kaggle notebook (notebooks/phishing_lora_kaggle.ipynb), unzipped.
+  kaggle_output_dir: models/phishing/phishing_lora_output
+  max_len: 256
+  # Alert threshold = score exceeded by this share of legitimate VALIDATION emails.
+  # At 0.5 the model flags ~4% of legitimate test mail; a 2% validation budget gives
+  # ~0.3% on test while catching ~90% of malicious mail (reports/phishing/results.md).
+  fpr_budget: 0.02
+  # int8 quantization of the embedding table only: 2.1x smaller with no accuracy loss.
+  # Quantizing every MatMul is 1.6x faster but costs 1-2 F1 points (benchmark report).
+  quantization: embeddings
+  # Emails scored per model in the before/after benchmark (CPU is ~8 emails/s).
+  benchmark_emails: 1000
+  # URL classifier (PhiUSIIL + Hannousse, raw URLs).
+  url_raw_dir: data/raw/phishing_urls
+  # At most this share of legitimate validation URLs flagged. Emails carry several links,
+  # so the per-URL budget is tighter than the per-email one.
+  url_fpr_budget: 0.01
+  url_max_features: 50000
+  # Links may add at most this much to the email false-alarm rate on validation.
+  url_email_extra_fpr: 0.005

@@ -176,6 +176,42 @@ def phishing_prepare(params_file: Path | None = None) -> None:
     typer.echo(f"Kaggle upload folder: {p.resolve(p.phishing.kaggle_dir)}")
 
 
+@phishing_app.command("build")
+def phishing_build(
+    register: bool = typer.Option(True, help="register the bundle in the MLflow model registry"),
+    params_file: Path | None = None,
+) -> None:
+    """Kaggle LoRA output -> merged ONNX int8 bundle, before/after benchmark, MLflow."""
+    from sentinel.phishing.build import build
+
+    out = build(load_params(params_file), register=register)
+    t = out["accuracy"]["test"]
+    typer.echo(
+        f"test F1 {t['f1']:.4f}  false alarms {t['false_alarm_rate']:.2%}  "
+        f"(threshold {out['threshold']:.3f})"
+    )
+    typer.echo("wrote reports/phishing/results.md")
+    typer.echo(json.dumps(out["registry"], indent=2))
+
+
+@phishing_app.command("url-train")
+def phishing_url_train(
+    register: bool = typer.Option(True, help="register the bundle in the MLflow model registry"),
+    params_file: Path | None = None,
+) -> None:
+    """Train the URL classifier; evaluate it alone, cross-dataset and combined with email text."""
+    from sentinel.phishing.url_train import train
+
+    out = train(load_params(params_file), register=register)
+    t = out["test"]
+    typer.echo(
+        f"URL test ROC-AUC {t['roc_auc']:.4f}  false alarms {t['false_alarm_rate']:.2%}  "
+        f"caught {t['recall']:.2%}"
+    )
+    typer.echo("wrote reports/phishing/url_results.md")
+    typer.echo(json.dumps(out["registry"], indent=2))
+
+
 @phishing_app.command("notebook")
 def phishing_notebook(
     src: Path = typer.Option(Path("notebooks/phishing_lora_kaggle.py")),

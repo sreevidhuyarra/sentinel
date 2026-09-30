@@ -372,12 +372,8 @@ stages:
       size: 3093
     params:
       params.yaml:
-        phishing:
-          raw_dir: data/raw/phishing_emails
-          processed_dir: data/processed/phishing
-          kaggle_dir: kaggle/phishing-emails
-          max_chars: 3000
-          n_folds: 5
+        phishing.max_chars: 3000
+        phishing.n_folds: 5
         seed: 42
     outs:
     - path: data/processed/phishing
@@ -394,3 +390,101 @@ stages:
       hash: md5
       md5: 7e03d5c664286258080d27f8ce535850
       size: 825
+  build_phishing:
+    cmd: sentinel phishing build
+    deps:
+    - path: kaggle/phishing-emails
+      hash: md5
+      md5: 406179bf0bbded8ad789c5652b9e9188.dir
+      size: 69957221
+      nfiles: 5
+    - path: models/phishing/phishing_lora_output
+      hash: md5
+      md5: 35a9c9158173bdc72c504cf41cc35411.dir
+      size: 15108012
+      nfiles: 8
+    - path: src/sentinel/phishing/build.py
+      hash: md5
+      md5: 564b159a66982102dfe6eac8de5de6f9
+      size: 9429
+    - path: src/sentinel/phishing/export.py
+      hash: md5
+      md5: 48401aae240b2e8519cdc08d3d520887
+      size: 6937
+    - path: src/sentinel/phishing/registry.py
+      hash: md5
+      md5: f560be3879e170b036bace26934d5ffa
+      size: 2822
+    - path: src/sentinel/phishing/report.py
+      hash: md5
+      md5: c3a7535dba2b4f5c6e12be670ff09be3
+      size: 9412
+    params:
+      params.yaml:
+        phishing.benchmark_emails: 1000
+        phishing.fpr_budget: 0.02
+        phishing.max_len: 256
+        phishing.quantization: embeddings
+        seed: 42
+    outs:
+    - path: models/phishing/bundle
+      hash: md5
+      md5: 81d8af82dc9011bccffbbbe7bf027f8c.dir
+      size: 280849568
+      nfiles: 4
+    - path: models/phishing/work
+      hash: md5
+      md5: 70dc4aaa7bc50d331335e1bb9f5a421b.dir
+      size: 1004746152
+      nfiles: 3
+    - path: reports/phishing/metrics.json
+      hash: md5
+      md5: 51c1abe8fd6f09caaa49659e2fa96e9c
+      size: 180
+  train_url:
+    cmd: sentinel phishing url-train
+    deps:
+    - path: data/processed/phishing
+      hash: md5
+      md5: f81c308d8ad421019178e5f46031f960.dir
+      size: 73486809
+      nfiles: 1
+    - path: data/raw/phishing_urls
+      hash: md5
+      md5: 1f162225dcb58d054375a8f2732ce86e.dir
+      size: 58074002
+      nfiles: 3
+    - path: models/phishing/bundle
+      hash: md5
+      md5: 81d8af82dc9011bccffbbbe7bf027f8c.dir
+      size: 280849568
+      nfiles: 4
+    - path: models/phishing/phishing_lora_output
+      hash: md5
+      md5: 35a9c9158173bdc72c504cf41cc35411.dir
+      size: 15108012
+      nfiles: 8
+    - path: src/sentinel/phishing/url_train.py
+      hash: md5
+      md5: 8ab5c03ec3a38081bcd0caff08a086da
+      size: 15983
+    - path: src/sentinel/phishing/urls.py
+      hash: md5
+      md5: 912dc30295d5bc0f5efc527c1395d8ab
+      size: 8289
+    params:
+      params.yaml:
+        phishing.url_email_extra_fpr: 0.005
+        phishing.url_fpr_budget: 0.01
+        phishing.url_max_features: 50000
+        seed: 42
+    outs:
+    - path: models/phishing/url_bundle
+      hash: md5
+      md5: 2cee10e24eca84b41202f90dce88b891.dir
+      size: 7270829
+      nfiles: 3
+    - path: reports/phishing/url_metrics.json
+      hash: md5
+      md5: 1319883e22691c3b825e45eb497e0e67
+      size: 179

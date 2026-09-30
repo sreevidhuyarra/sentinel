@@ -7,6 +7,7 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
 - [x] Week 1 — scaffold, data pipeline (ingest → clean → label → temporal split → schema), DVC, CI, compose infra
 - [x] Module 1 — supervised IDS: logreg / LightGBM / XGBoost / MLP, imbalance study, Optuna,
       calibration, benign-FPR threshold, LightGBM+MLP ensemble, TreeSHAP reasons, MLflow registry, FastAPI `/score/flows`
+- [x] Module 1 CI — GitHub Actions green on the first push (private repo sreevidhuyarra/sentinel)
 - [x] Module 1 follow-up — cross-dataset test on CIC-UNSW-NB15 (goal G3): `sentinel ids cross-dataset`,
       DVC stage `cross_dataset`, report `reports/ids/cross_dataset.md`. Result: no transfer (ROC-AUC 0.55–0.68)
       vs UNSW-trained reference 0.995.
@@ -18,8 +19,12 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
         `prepare_phishing`) → Kaggle upload folder `kaggle/phishing-emails/`
   - [x] Kaggle notebook `notebooks/phishing_lora_kaggle.ipynb` (built from the `.py` with
         `sentinel phishing notebook`; smoke test: `SENTINEL_SMOKE=1 SENTINEL_DATA_DIR=kaggle/phishing-emails`)
-  - [ ] user runs it on Kaggle → `models/phishing/phishing_lora_output.zip`
-  - [ ] merge + ONNX int8 + benchmarks + URL model + API
+  - [x] Kaggle run done (68 min, 2× T4) → `models/phishing/phishing_lora_output/` (DVC-tracked)
+  - [x] `sentinel phishing build` / DVC `build_phishing`: merge → ONNX (torch.export) → int8 embeddings,
+        benchmark, `phishing-classifier` v1 @production; `POST /score/phishing` with sentence explanations
+  - [x] URL model: `sentinel phishing url-train` / DVC `train_url` (PhiUSIIL + Hannousse; ISCX-URL2016 is
+        form-gated and its mirrors lack raw URLs), `url-classifier` v3 @production, `POST /score/url`;
+        combined email verdict evaluated — links left out (email_threshold None), see url_results.md
 - [ ] Module 4 — adversarial robustness (ART)
 - [ ] Module 5 — SOC copilot (LangGraph, RAG, injection guard)
 - [ ] Module 6 — MLOps (Prometheus/Grafana, Evidently, Prefect) + streaming detector + React dashboard
@@ -69,7 +74,15 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
   phishing recall separately (only ~1.5k true phishing emails).
 - transformers 5.x: load DeBERTa with `dtype=torch.float32` (checkpoint is fp16; default keeps it →
   fp16 AMP crash on GPU, ~100x slower on CPU). `warmup_ratio` is gone: pass a float to `warmup_steps`.
-- Notebook pins transformers 5.17.0 / peft 0.21.1 / accelerate 1.15.0 to match the laptop.
+- Notebook pins transformers 5.17.0 / peft 0.21.1 / accelerate 1.15.0 to match the laptop, and
+  uninstalls Kaggle's torchao 0.10 (PEFT rejects torchao < 0.16 even when unused).
+- ONNX export must use `dynamo=True`: the legacy exporter is wrong on padded batches
+  (`tests/unit/test_phishing_export.py` guards this). Strip `graph.value_info` before quantizing.
+- Deployed quantization = embeddings only (full int8 flips 85/1000 verdicts at threshold 0.989).
+- Test F1 0.944 at the deployed threshold (0.31% false alarms); 0.970 at 0.5 (3.99%).
+- URL data shortcut: PhiUSIIL legitimate URLs are all bare homepages. Train source-balanced,
+  set thresholds and judge promotion on Hannousse (realistic legitimate URLs), never on the
+  PhiUSIIL-dominated overall numbers.
 
 ## Module 2 findings
 - Autoencoder test ROC-AUC 0.943 vs Isolation Forest 0.918; 33% vs 13% recall at 1% benign FPR.

@@ -1,0 +1,6 @@
+outs:
+- md5: 35a9c9158173bdc72c504cf41cc35411.dir
+  size: 15108012
+  nfiles: 8
+  hash: md5
+  path: phishing_lora_output

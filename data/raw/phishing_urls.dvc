@@ -1,0 +1,6 @@
+outs:
+- md5: 1f162225dcb58d054375a8f2732ce86e.dir
+  size: 58074002
+  nfiles: 3
+  hash: md5
+  path: phishing_urls

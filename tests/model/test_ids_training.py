@@ -91,6 +91,8 @@ def test_api_health_and_models(client: TestClient) -> None:
         "status": "ok",
         "model_loaded": True,
         "anomaly_model_loaded": False,
+        "phishing_model_loaded": False,
+        "url_model_loaded": False,
     }
     assert client.get("/models").json()["ids"]["source"] == "test-bundle"
 

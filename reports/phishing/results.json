@@ -1,0 +1,321 @@
+{
+  "threshold": 0.9894675600000001,
+  "fpr_budget": 0.02,
+  "deployed": "onnx_int8_embeddings",
+  "accuracy": {
+    "val": {
+      "f1": 0.9460532200357782,
+      "precision": 0.9796804445988191,
+      "recall": 0.9146578748243434,
+      "pr_auc": 0.9948432689221228,
+      "roc_auc": 0.9944729549483189,
+      "false_alarm_rate": 0.019960193346602217,
+      "flagged_by_kind": {
+        "fraud": 0.8984615384615384,
+        "legitimate": 0.019960193346602217,
+        "phishing": 0.7540453074433657,
+        "spam": 0.9180869862623269
+      },
+      "by_source": {
+        "CEAS_08": {
+          "emails": 6882,
+          "false_alarm_rate": 0.0017411491584445734,
+          "recall": 0.9772991850989523
+        },
+        "Enron": {
+          "emails": 5879,
+          "false_alarm_rate": 0.0003234152652005175,
+          "recall": 0.9027628274129889
+        },
+        "Ling": {
+          "emails": 571,
+          "false_alarm_rate": 0.0,
+          "recall": 0.6593406593406593
+        },
+        "Nazario": {
+          "emails": 309,
+          "false_alarm_rate": null,
+          "recall": 0.7540453074433657
+        },
+        "Nazario_5": {
+          "emails": 240,
+          "false_alarm_rate": 0.020833333333333332,
+          "recall": null
+        },
+        "Nigerian_5": {
+          "emails": 891,
+          "false_alarm_rate": 0.02074688796680498,
+          "recall": 0.8984615384615384
+        },
+        "SpamAssasin": {
+          "emails": 1033,
+          "false_alarm_rate": 0.0,
+          "recall": 0.7172619047619048
+        },
+        "TREC_05": {
+          "emails": 6768,
+          "false_alarm_rate": 0.003923278116826504,
+          "recall": 0.9224407688869021
+        },
+        "TREC_06": {
+          "emails": 3118,
+          "false_alarm_rate": 0.002553191489361702,
+          "recall": 0.9153645833333334
+        },
+        "TREC_07": {
+          "emails": 10396,
+          "false_alarm_rate": 0.06722866174920969,
+          "recall": 0.9026720934347903
+        }
+      }
+    },
+    "test": {
+      "f1": 0.9439781489174041,
+      "precision": 0.9966955058880077,
+      "recall": 0.8965573150299951,
+      "pr_auc": 0.9970594226812158,
+      "roc_auc": 0.9968081452325291,
+      "false_alarm_rate": 0.0031278434940855324,
+      "flagged_by_kind": {
+        "fraud": 0.9030769230769231,
+        "legitimate": 0.0031278434940855324,
+        "phishing": 0.7766990291262136,
+        "spam": 0.8984268125854993
+      },
+      "by_source": {
+        "CEAS_08": {
+          "emails": 6882,
+          "false_alarm_rate": 0.0014509576320371445,
+          "recall": 0.9225844004656577
+        },
+        "Enron": {
+          "emails": 5880,
+          "false_alarm_rate": 0.00032331070158422246,
+          "recall": 0.901686401148188
+        },
+        "Ling": {
+          "emails": 571,
+          "false_alarm_rate": 0.0,
+          "recall": 0.6813186813186813
+        },
+        "Nazario": {
+          "emails": 309,
+          "false_alarm_rate": null,
+          "recall": 0.7766990291262136
+        },
+        "Nazario_5": {
+          "emails": 240,
+          "false_alarm_rate": 0.0125,
+          "recall": null
+        },
+        "Nigerian_5": {
+          "emails": 891,
+          "false_alarm_rate": 0.012448132780082987,
+          "recall": 0.9030769230769231
+        },
+        "SpamAssasin": {
+          "emails": 1034,
+          "false_alarm_rate": 0.0,
+          "recall": 0.6517857142857143
+        },
+        "TREC_05": {
+          "emails": 6767,
+          "false_alarm_rate": 0.0030527692978630614,
+          "recall": 0.8913723737147966
+        },
+        "TREC_06": {
+          "emails": 3118,
+          "false_alarm_rate": 0.0021285653469561515,
+          "recall": 0.9050715214564369
+        },
+        "TREC_07": {
+          "emails": 10395,
+          "false_alarm_rate": 0.0065345699831365935,
+          "recall": 0.9049725712263316
+        }
+      }
+    }
+  },
+  "accuracy_at_0.5": {
+    "val": {
+      "f1": 0.962022621423819,
+      "precision": 0.9476222932941855,
+      "recall": 0.9768673656901956,
+      "pr_auc": 0.9948432689221228,
+      "roc_auc": 0.9944729549483189,
+      "false_alarm_rate": 0.05680978106340631,
+      "flagged_by_kind": {
+        "fraud": 0.9738461538461538,
+        "legitimate": 0.05680978106340631,
+        "phishing": 0.9288025889967637,
+        "spam": 0.97782591346976
+      },
+      "by_source": {
+        "CEAS_08": {
+          "emails": 6882,
+          "false_alarm_rate": 0.017991874637260593,
+          "recall": 0.9953434225844005
+        },
+        "Enron": {
+          "emails": 5879,
+          "false_alarm_rate": 0.002263906856403622,
+          "recall": 0.9752421959095802
+        },
+        "Ling": {
+          "emails": 571,
+          "false_alarm_rate": 0.0020833333333333333,
+          "recall": 0.8901098901098901
+        },
+        "Nazario": {
+          "emails": 309,
+          "false_alarm_rate": null,
+          "recall": 0.9288025889967637
+        },
+        "Nazario_5": {
+          "emails": 240,
+          "false_alarm_rate": 0.05416666666666667,
+          "recall": null
+        },
+        "Nigerian_5": {
+          "emails": 891,
+          "false_alarm_rate": 0.05394190871369295,
+          "recall": 0.9738461538461538
+        },
+        "SpamAssasin": {
+          "emails": 1033,
+          "false_alarm_rate": 0.00430416068866571,
+          "recall": 0.9166666666666666
+        },
+        "TREC_05": {
+          "emails": 6768,
+          "false_alarm_rate": 0.03007846556233653,
+          "recall": 0.9738489047831917
+        },
+        "TREC_06": {
+          "emails": 3118,
+          "false_alarm_rate": 0.009361702127659575,
+          "recall": 0.9778645833333334
+        },
+        "TREC_07": {
+          "emails": 10396,
+          "false_alarm_rate": 0.17049525816649105,
+          "recall": 0.9766413024243497
+        }
+      }
+    },
+    "test": {
+      "f1": 0.9694676969306718,
+      "precision": 0.9625979007938622,
+      "recall": 0.9764362535805005,
+      "pr_auc": 0.9970594226812158,
+      "roc_auc": 0.9968081452325291,
+      "false_alarm_rate": 0.03992265696087352,
+      "flagged_by_kind": {
+        "fraud": 0.9938461538461538,
+        "legitimate": 0.03992265696087352,
+        "phishing": 0.9320388349514563,
+        "spam": 0.9765731874145007
+      },
+      "by_source": {
+        "CEAS_08": {
+          "emails": 6882,
+          "false_alarm_rate": 0.0391758560650029,
+          "recall": 0.9985448195576252
+        },
+        "Enron": {
+          "emails": 5880,
+          "false_alarm_rate": 0.003556417717426447,
+          "recall": 0.9770362396842482
+        },
+        "Ling": {
+          "emails": 571,
+          "false_alarm_rate": 0.0,
+          "recall": 0.945054945054945
+        },
+        "Nazario": {
+          "emails": 309,
+          "false_alarm_rate": null,
+          "recall": 0.9320388349514563
+        },
+        "Nazario_5": {
+          "emails": 240,
+          "false_alarm_rate": 0.03333333333333333,
+          "recall": null
+        },
+        "Nigerian_5": {
+          "emails": 891,
+          "false_alarm_rate": 0.029045643153526972,
+          "recall": 0.9938461538461538
+        },
+        "SpamAssasin": {
+          "emails": 1034,
+          "false_alarm_rate": 0.0071633237822349575,
+          "recall": 0.9136904761904762
+        },
+        "TREC_05": {
+          "emails": 6767,
+          "false_alarm_rate": 0.09158307893589185,
+          "recall": 0.9566383549396513
+        },
+        "TREC_06": {
+          "emails": 3118,
+          "false_alarm_rate": 0.004682843763303533,
+          "recall": 0.976592977893368
+        },
+        "TREC_07": {
+          "emails": 10395,
+          "false_alarm_rate": 0.06639966273187184,
+          "recall": 0.983011856308618
+        }
+      }
+    }
+  },
+  "benchmark_sample": 1000,
+  "benchmark": {
+    "pytorch_fp32": {
+      "size_mb": null,
+      "emails_per_s": 6.096552806515699,
+      "p50_ms": 203.90499999484746,
+      "p95_ms": 252.23456498933956,
+      "f1": 0.9568788501026694,
+      "roc_auc": 0.9980996275269953
+    },
+    "onnx_fp32": {
+      "size_mb": 567.655886,
+      "emails_per_s": 7.860355928659405,
+      "p50_ms": 130.32755000313045,
+      "p95_ms": 160.81986999197397,
+      "verdicts_differ_from_pytorch": 0,
+      "max_prob_diff": 5.6202833006446795e-06,
+      "f1": 0.9568788501026694,
+      "roc_auc": 0.9980996275269953
+    },
+    "onnx_int8_embeddings": {
+      "size_mb": 272.508073,
+      "emails_per_s": 7.752690392113484,
+      "p50_ms": 128.60419999924488,
+      "p95_ms": 158.4733800002141,
+      "verdicts_differ_from_pytorch": 2,
+      "max_prob_diff": 0.20558997480809216,
+      "f1": 0.9567901234567902,
+      "roc_auc": 0.9981156306636101
+    },
+    "onnx_int8_full": {
+      "size_mb": 164.582193,
+      "emails_per_s": 12.026973350157395,
+      "p50_ms": 87.33094999479363,
+      "p95_ms": 112.5123500045447,
+      "verdicts_differ_from_pytorch": 85,
+      "max_prob_diff": 0.9695754357777139,
+      "f1": 0.8723640399556049,
+      "roc_auc": 0.9941548543514529
+    }
+  },
+  "training": {
+    "minutes": 68.4533826549848,
+    "gpus": [
+      "Tesla T4",
+      "Tesla T4"
+    ]
+  }
+}

@@ -116,6 +116,15 @@ class PhishingParams(BaseModel):
     kaggle_dir: Path = Path("kaggle/phishing-emails")
     max_chars: int = Field(3000, gt=100)
     n_folds: int = Field(5, ge=3)
+    kaggle_output_dir: Path = Path("models/phishing/phishing_lora_output")
+    max_len: int = 256
+    fpr_budget: float = Field(0.02, gt=0, lt=1)
+    quantization: Literal["embeddings", "full", "none"] = "embeddings"
+    benchmark_emails: int = Field(1000, ge=50)
+    url_raw_dir: Path = Path("data/raw/phishing_urls")
+    url_fpr_budget: float = Field(0.01, gt=0, lt=1)
+    url_max_features: int = Field(50_000, ge=1000)
+    url_email_extra_fpr: float = Field(0.005, ge=0, lt=1)
 
 
 class Params(BaseModel):
@@ -146,6 +155,10 @@ class Settings(BaseSettings):
     ids_model_path: Path = PROJECT_ROOT / "models" / "ids"
     anomaly_model_uri: str = "models:/anomaly-detector@production"
     anomaly_model_path: Path = PROJECT_ROOT / "models" / "anomaly"
+    phishing_model_uri: str = "models:/phishing-classifier@production"
+    phishing_model_path: Path = PROJECT_ROOT / "models" / "phishing" / "bundle"
+    url_model_uri: str = "models:/url-classifier@production"
+    url_model_path: Path = PROJECT_ROOT / "models" / "phishing" / "url_bundle"
     log_level: str = "INFO"
 
 

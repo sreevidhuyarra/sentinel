@@ -29,6 +29,9 @@ dependencies = [
     "accelerate>=0.33",
     "sentencepiece>=0.2",
     "protobuf>=4.25",
+    "onnx>=1.16",
+    "onnxscript>=0.3",
+    "onnxruntime>=1.19",
     # Serving
     "fastapi>=0.115",
     "uvicorn>=0.30",
@@ -79,6 +82,8 @@ ignore = ["N803", "N806"]
 [tool.ruff.lint.per-file-ignores]
 # Notebook sources import per cell, after the pip-install cell.
 "notebooks/*.py" = ["E402"]
+# Markdown table rows are long by nature.
+"src/sentinel/*/report.py" = ["E501"]
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["typer.Option", "typer.Argument"]
