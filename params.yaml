@@ -158,3 +158,59 @@ adversarial:
   adv_train_benign: 150000
   # Share of benign validation flows the disagreement flag may send to review.
   review_budget: 0.01
+
+copilot:
+  llm:
+    # Tried in order; LLM_PROVIDERS=ollama in .env switches to offline-only.
+    providers: [gemini, ollama]
+    gemini_model: gemini-3.5-flash-lite
+    ollama_model: llama3.2:3b
+    # Free-tier budget: set these to your limits at https://aistudio.google.com/rate-limit.
+    gemini_rpm: 8
+    gemini_rpd: 200
+    # Evaluation judge: a different model from the generator.
+    judge_model: gemini-3.8-flash
+    judge_rpm: 5
+    judge_rpd: 100
+    cache_path: data/cache/llm.sqlite
+  # Emails scored per kind when filling the alerts table; the flagged ones become alerts.
+  email_sample: {phishing: 309, fraud: 300, spam: 300, legitimate: 300}
+  related_window_minutes: 30
+  n_techniques: 8   # retrieved ATT&CK candidates the LLM may choose from
+  n_cves: 3
+  # Re-ranker score a CVE needs to be offered (flow data rarely names a product).
+  cve_min_score: 1.0
+  guard:
+    deepset_dir: data/raw/prompt_injections
+    n_train: 4000   # synthetic documents per split, half with an embedded injection
+    n_val: 1000
+    n_test: 2000
+    max_fpr: 0.01   # false alarms allowed on clean validation documents
+    train_deberta: true
+    epochs: 2
+    lr: 0.00003
+    batch_size: 16
+    max_len: 128
+  severity:
+    family_impact:
+      PortScan: Medium
+      BruteForce: Medium
+      DoS: High
+      DDoS: High
+      WebAttack: High
+      Bot: High
+      Infiltration: Critical
+      Unknown anomaly: Medium
+      Phishing/Spam: Medium
+    # Without evidence of success, recon and password guessing stay below Critical.
+    family_cap: {PortScan: High, BruteForce: High}
+    volume_high: 100
+    url_malicious: 0.9
+  # CIC-IDS2017 victim network (dataset documentation); most specific match wins.
+  assets:
+    - {cidr: 192.168.10.0/24, name: victim network workstation, criticality: medium}
+    - {cidr: 192.168.10.50, name: Ubuntu 16 web server, criticality: critical}
+    - {cidr: 192.168.10.51, name: Ubuntu 12 server, criticality: high}
+    - {cidr: 192.168.10.3, name: Windows Server 2016 domain controller and DNS, criticality: critical}
+    - {cidr: 205.174.165.0/24, name: attacker network (external), criticality: low}
+    - {cidr: 172.16.0.1, name: firewall NAT address, criticality: medium}

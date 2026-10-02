@@ -1,19 +1,25 @@
-"""FastAPI gateway: health, model info and batch flow scoring (supervised + anomaly)."""
+"""FastAPI gateway: health, models, flow / email / URL scoring, alerts and the SOC copilot."""
 
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, NamedTuple
 
 import polars as pl
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+from sqlalchemy import Engine, insert, select
 
 from sentinel.anomaly.bundle import AnomalyBundle
 from sentinel.common.config import get_settings
 from sentinel.common.logging import get_logger
+from sentinel.copilot.graph import Copilot
+from sentinel.copilot.models import IncidentReport
+from sentinel.copilot.tools import AlertTools
+from sentinel.db.schema import reports as reports_table
 from sentinel.detection.fusion import Detector
 from sentinel.ids.bundle import IDSBundle
 from sentinel.phishing.explain import explain
@@ -186,6 +192,8 @@ def create_app(
     phishing_source: str | None = None,
     url: UrlModel | None = None,
     url_source: str | None = None,
+    copilot: Copilot | None = None,
+    db: Engine | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -206,9 +214,11 @@ def create_app(
             app.state.phishing_source = phishing_source if phishing else None
             app.state.url = url
             app.state.url_source = url_source if url else None
+        app.state.copilot = copilot  # built on first investigation if None
+        app.state.db = db
         yield
 
-    app = FastAPI(title="Sentinel API", version="0.3.0", lifespan=lifespan)
+    app = FastAPI(title="Sentinel API", version="0.4.0", lifespan=lifespan)
 
     @app.get("/health")
     def health(request: Request) -> dict[str, Any]:
@@ -311,6 +321,84 @@ def create_app(
             model_version=request.app.state.phishing_source,
             url_model_version=request.app.state.url_source,
         )
+
+    def _db(request: Request) -> Engine:
+        if request.app.state.db is None:
+            from sentinel.db.schema import make_engine
+
+            request.app.state.db = make_engine(get_settings().postgres_url)
+        engine: Engine = request.app.state.db
+        return engine
+
+    def _copilot(request: Request) -> Copilot:
+        if request.app.state.copilot is None:
+            from sentinel.common.config import load_params
+            from sentinel.copilot.service import build_copilot
+
+            request.app.state.copilot = build_copilot(load_params())
+        c: Copilot = request.app.state.copilot
+        return c
+
+    @app.get("/alerts")
+    def list_alerts(
+        request: Request,
+        family: str | None = None,
+        severity: str | None = None,
+        source: str | None = None,
+        src_ip: str | None = None,
+        since: datetime | None = None,
+        limit: int = Query(50, ge=1, le=100),
+    ) -> dict[str, Any]:
+        tools = AlertTools(_db(request))
+        rows = tools.query_alerts(
+            since=since,
+            limit=limit,
+            predicted_family=family,
+            severity=severity,
+            source=source,
+            src_ip=src_ip,
+        )
+        return {"alerts": rows, "count": len(rows)}
+
+    @app.get("/alerts/{alert_id}")
+    def get_alert(alert_id: int, request: Request) -> dict[str, Any]:
+        alert = AlertTools(_db(request)).get_alert(alert_id)
+        if alert is None:
+            raise HTTPException(404, detail="alert not found")
+        return alert
+
+    @app.post("/copilot/investigate/{alert_id}", response_model=IncidentReport)
+    def investigate(alert_id: int, request: Request) -> IncidentReport:
+        """Run the investigation graph (seconds with Gemini, minutes on the local model)."""
+        from sentinel.copilot.graph import AlertNotFoundError
+
+        try:
+            report, trace = _copilot(request).investigate(alert_id)
+        except AlertNotFoundError:
+            raise HTTPException(404, detail="alert not found") from None
+        with _db(request).begin() as conn:
+            conn.execute(
+                insert(reports_table).values(
+                    id=report.report_id,
+                    alert_id=alert_id,
+                    created=datetime.now(UTC).replace(tzinfo=None),
+                    status="done",
+                    provider=report.provider,
+                    report=report.model_dump(mode="json"),
+                    trace=trace,
+                )
+            )
+        return report
+
+    @app.get("/reports/{report_id}", response_model=IncidentReport)
+    def get_report(report_id: str, request: Request) -> IncidentReport:
+        with _db(request).connect() as conn:
+            row = conn.execute(
+                select(reports_table.c.report).where(reports_table.c.id == report_id)
+            ).first()
+        if row is None:
+            raise HTTPException(404, detail="report not found")
+        return IncidentReport.model_validate(row[0])
 
     @app.post("/score/flows", response_model=ScoreResponse)
     def score_flows(batch: FlowBatch, request: Request) -> ScoreResponse:

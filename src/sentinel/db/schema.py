@@ -1,0 +1,108 @@
+"""Alert and report tables (report section 10.3), SQLAlchemy Core on Postgres or SQLite.
+
+`alert_truth` holds the dataset labels for evaluation only. No copilot tool can read it,
+so ground truth cannot leak into an investigation.
+"""
+
+from __future__ import annotations
+
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    Engine,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    Text,
+    create_engine,
+    event,
+    text,
+)
+from sqlalchemy.dialects.postgresql import JSONB
+
+JSONType = JSON().with_variant(JSONB(), "postgresql")
+
+metadata = MetaData()
+
+alerts = Table(
+    "alerts",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("ts", DateTime, nullable=False),
+    Column("source", String(16), nullable=False),  # "network" or "email"
+    Column("src_ip", String(64)),
+    Column("dst_ip", String(64)),
+    Column("src_port", Integer),
+    Column("dst_port", Integer),
+    Column("protocol", Integer),
+    Column("sender_domain", String(255)),
+    Column("predicted_family", String(32), nullable=False),
+    Column("detector", String(16)),  # supervised / anomaly / text / url
+    Column("confidence", Float),
+    Column("attack_score", Float),
+    Column("anomaly_score", Float),
+    Column("severity", String(16)),
+    Column("reasons", JSONType),  # SHAP / anomaly / sentence reasons from the detector
+    Column("evidence", JSONType),  # untrusted text (email subject/body, URLs, log lines)
+    Column("model_version", String(255)),
+    Column("status", String(16), nullable=False, server_default="new"),
+    Index("alerts_src_ts", "src_ip", "ts"),
+    Index("alerts_family", "predicted_family"),
+)
+
+alert_truth = Table(
+    "alert_truth",
+    metadata,
+    Column("alert_id", Integer, ForeignKey("alerts.id"), primary_key=True),
+    Column("label", String(64), nullable=False),  # dataset sub-label, e.g. "DoS Hulk"
+    Column("family", String(32), nullable=False),
+)
+
+reports = Table(
+    "reports",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("alert_id", Integer, ForeignKey("alerts.id"), nullable=False),
+    Column("created", DateTime, nullable=False),
+    Column("status", String(16), nullable=False),  # done / failed
+    Column("provider", String(64)),
+    Column("report", JSONType),
+    Column("trace", JSONType),  # per-node timings, tokens, guard findings, retries
+    Column("error", Text),
+)
+
+# Tables the copilot's read-only role may see.
+COPILOT_TABLES = ("alerts", "reports")
+
+
+def make_engine(url: str) -> Engine:
+    engine = create_engine(url, future=True, pool_pre_ping=True)
+    if engine.dialect.name == "sqlite":
+
+        @event.listens_for(engine, "connect")
+        def _fk(dbapi_conn, _record):  # type: ignore[no-untyped-def]
+            dbapi_conn.execute("PRAGMA foreign_keys=ON")
+
+    return engine
+
+
+def init_db(engine: Engine, ro_password: str | None = None) -> None:
+    """Create the tables; on Postgres also a SELECT-only role for the copilot."""
+    metadata.create_all(engine)
+    if engine.dialect.name != "postgresql" or not ro_password:
+        return
+    with engine.begin() as conn:
+        exists = conn.execute(text("SELECT 1 FROM pg_roles WHERE rolname = 'sentinel_ro'")).first()
+        if not exists:
+            # DDL cannot take bound parameters; the password comes from our own settings
+            # and is quoted as a SQL string literal.
+            literal = "'" + ro_password.replace("'", "''") + "'"
+            conn.execute(text(f"CREATE ROLE sentinel_ro LOGIN PASSWORD {literal}"))
+        conn.execute(text("REVOKE ALL ON ALL TABLES IN SCHEMA public FROM sentinel_ro"))
+        for t in COPILOT_TABLES:
+            conn.execute(text(f"GRANT SELECT ON {t} TO sentinel_ro"))

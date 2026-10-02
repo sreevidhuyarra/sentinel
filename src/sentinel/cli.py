@@ -237,6 +237,146 @@ def adversarial_run(params_file: Path | None = None) -> None:
     typer.echo("wrote reports/adversarial/results.md")
 
 
+alerts_app = typer.Typer(no_args_is_help=True, help="Alert database (Postgres).")
+app.add_typer(alerts_app, name="alerts")
+
+
+@alerts_app.command("load")
+def alerts_load(
+    source: str = typer.Option("all", help="network, email or all"),
+    params_file: Path | None = None,
+) -> None:
+    """Score the test splits with the deployed detectors and (re)fill the alerts table."""
+    import polars as pl
+
+    from sentinel.common.config import get_settings
+    from sentinel.db import load
+    from sentinel.db.schema import init_db, make_engine
+    from sentinel.services.api import load_production_models
+
+    p, s = load_params(params_file), get_settings()
+    engine = make_engine(s.postgres_url)
+    init_db(engine, s.postgres_ro_password)
+    m = load_production_models()
+    if source in ("network", "all"):
+        load.clear(engine, "network")
+        flows = pl.read_parquet(p.resolve(p.data.processed_dir) / "flows.parquet").filter(
+            pl.col("split") == "test"
+        )
+        typer.echo(f"network alerts: {load.load_network(engine, m.detector, flows, m.ids_source)}")
+    if source in ("email", "all"):
+        if m.phishing is None:
+            raise typer.BadParameter("phishing model not available")
+        load.clear(engine, "email")
+        emails = pl.read_parquet(p.resolve(p.phishing.processed_dir) / "emails.parquet").filter(
+            pl.col("split") == "test"
+        )
+        n = load.load_email(
+            engine,
+            m.phishing,
+            m.url,
+            emails,
+            p.copilot.email_sample,
+            p.seed,
+            m.phishing_source or "local",
+        )
+        typer.echo(f"email alerts: {n}")
+
+
+copilot_app = typer.Typer(no_args_is_help=True, help="Module 5: SOC copilot.")
+app.add_typer(copilot_app, name="copilot")
+
+
+@copilot_app.command("kb")
+def copilot_kb(download: bool = False, params_file: Path | None = None) -> None:
+    """Build the ATT&CK + KEV knowledge base and the hybrid retrieval index."""
+    from sentinel.copilot import kb
+    from sentinel.copilot.rag import Retriever
+    from sentinel.copilot.service import RAG_DIR
+
+    p = load_params(params_file)
+    raw, out = p.resolve(Path("data/raw/knowledge")), p.resolve(Path("data/processed/knowledge"))
+    if download or not (raw / "enterprise-attack.json").exists():
+        kb.download(raw)
+    typer.echo(json.dumps(kb.build(raw, out)))
+    Retriever.build(out, p.resolve(RAG_DIR))
+
+
+@copilot_app.command("guard-train")
+def copilot_guard_train(params_file: Path | None = None) -> None:
+    """Train the injection guard's classifier; write reports/copilot/guard_results.json."""
+    from sentinel.copilot.guard_train import run
+
+    out = run(load_params(params_file))
+    typer.echo(
+        json.dumps({"chosen": out["chosen"], "test": out["test"]["rules+classifier"]["all"]})
+    )
+
+
+def _providers(provider: str | None) -> list[str] | None:
+    return [x.strip() for x in provider.split(",")] if provider else None
+
+
+@copilot_app.command("investigate")
+def copilot_investigate(
+    alert_id: int,
+    provider: str | None = typer.Option(None, help="e.g. ollama or gemini,ollama"),
+    params_file: Path | None = None,
+) -> None:
+    """Investigate one alert and print the incident report as JSON."""
+    from sentinel.copilot.service import build_copilot
+    from sentinel.llm.factory import build_provider
+
+    p = load_params(params_file)
+    llm = build_provider(p, order=_providers(provider)) if provider else "config"
+    report, trace = build_copilot(p, llm=llm).investigate(alert_id)
+    typer.echo(report.model_dump_json(indent=2))
+    typer.echo(json.dumps(trace), err=True)
+
+
+@copilot_app.command("evaluate")
+def copilot_evaluate(
+    limit: int | None = typer.Option(None, help="first N gold alerts only"),
+    reports: bool = typer.Option(True, help="also generate reports (uses the LLM)"),
+    judge: bool = typer.Option(True, help="LLM-as-judge faithfulness"),
+    provider: str | None = typer.Option(None, help="generator providers, e.g. ollama"),
+    judge_provider: str | None = typer.Option(
+        None, help="judge providers (default: gemini judge model)"
+    ),
+    fresh: bool = typer.Option(False, help="discard the resume checkpoint and start over"),
+    params_file: Path | None = None,
+) -> None:
+    """Gold-set evaluation: retrieval, technique mapping, faithfulness, cost (reports/copilot).
+
+    Resumable: finished reports are checkpointed, so rerunning after an interruption skips them.
+    """
+    from sentinel.copilot.run_eval import run
+
+    out = run(
+        load_params(params_file),
+        limit,
+        reports,
+        judge,
+        _providers(provider),
+        _providers(judge_provider),
+        fresh,
+    )
+    typer.echo(json.dumps(out.get("reports", {}), indent=2, default=str))
+
+
+@copilot_app.command("redteam")
+def copilot_redteam(
+    n: int = typer.Option(24, help="alerts to attack (half email, half network)"),
+    provider: str | None = typer.Option(None, help="e.g. ollama"),
+    params_file: Path | None = None,
+) -> None:
+    """Prompt-injection attack success with and without the guard (reports/copilot)."""
+    from sentinel.copilot.run_eval import run_redteam
+
+    out = run_redteam(load_params(params_file), n, _providers(provider))
+    typer.echo(json.dumps(out["summary"], indent=2))
+
+
 @app.command()
 def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
     """Run the FastAPI gateway (loads ids-classifier@production from MLflow)."""

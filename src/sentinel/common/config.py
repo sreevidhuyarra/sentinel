@@ -148,6 +148,80 @@ class AdversarialParams(BaseModel):
     review_budget: float = Field(0.01, gt=0, lt=1)
 
 
+class CopilotLLMParams(BaseModel):
+    providers: list[str] = Field(default_factory=lambda: ["gemini", "ollama"])
+    gemini_model: str = "gemini-3.5-flash-lite"
+    ollama_model: str = "llama3.2:3b"
+    # Free-tier budget; set to your limits from https://aistudio.google.com/rate-limit.
+    gemini_rpm: int = Field(8, ge=1)
+    gemini_rpd: int = Field(200, ge=1)
+    # Evaluation judge: a different model from the generator (report section 8.3).
+    judge_model: str = "gemini-3.8-flash"
+    judge_rpm: int = Field(5, ge=1)
+    judge_rpd: int = Field(100, ge=1)
+    cache_path: Path = Path("data/cache/llm.sqlite")
+
+
+class GuardParams(BaseModel):
+    deepset_dir: Path = Path("data/raw/prompt_injections")
+    n_train: int = 4000  # synthetic documents per split (half carry an injection)
+    n_val: int = 1000
+    n_test: int = 2000
+    max_fpr: float = Field(0.01, gt=0, lt=1)  # false alarms on clean validation documents
+    train_deberta: bool = True
+    epochs: int = 2
+    lr: float = 3e-5
+    batch_size: int = 16
+    max_len: int = 128
+
+
+class AssetParams(BaseModel):
+    cidr: str  # a single host ("192.168.10.50") or a network ("192.168.10.0/24")
+    name: str
+    criticality: Literal["low", "medium", "high", "critical"] = "medium"
+
+
+Level = Literal["Low", "Medium", "High", "Critical"]
+
+
+class SeverityParams(BaseModel):
+    family_impact: dict[str, Level] = Field(
+        default_factory=lambda: {  # type: ignore[arg-type]
+            "PortScan": "Medium",
+            "BruteForce": "Medium",
+            "DoS": "High",
+            "DDoS": "High",
+            "WebAttack": "High",
+            "Bot": "High",
+            "Infiltration": "Critical",
+            "Unknown anomaly": "Medium",
+            "Phishing/Spam": "Medium",
+        }
+    )
+    family_cap: dict[str, Level] = Field(
+        default_factory=lambda: {"PortScan": "High", "BruteForce": "High"}  # type: ignore[arg-type]
+    )
+    volume_high: int = Field(100, ge=1)  # related alerts in the window that make a campaign
+    url_malicious: float = Field(0.9, gt=0, le=1)
+
+
+class CopilotParams(BaseModel):
+    llm: CopilotLLMParams = CopilotLLMParams()
+    guard: GuardParams = GuardParams()
+    severity: SeverityParams = SeverityParams()
+    assets: list[AssetParams] = Field(default_factory=list)
+    related_window_minutes: int = Field(30, ge=1)
+    n_techniques: int = Field(8, ge=1)  # retrieved candidates the LLM may choose from
+    n_cves: int = Field(3, ge=0)
+    # Cross-encoder score a CVE needs to be offered at all. Flow records carry no product
+    # or version, so irrelevant CVEs score far below 0; a real match scores well above 1.
+    cve_min_score: float = 1.0
+    # Emails scored per kind when filling the alerts table (flagged ones become alerts).
+    email_sample: dict[str, int] = Field(
+        default_factory=lambda: {"phishing": 309, "fraud": 300, "spam": 300, "legitimate": 300}
+    )
+
+
 class Params(BaseModel):
     seed: int = 42
     data: DataParams
@@ -157,6 +231,7 @@ class Params(BaseModel):
     anomaly: AnomalyParams = AnomalyParams()
     phishing: PhishingParams = PhishingParams()
     adversarial: AdversarialParams = AdversarialParams()
+    copilot: CopilotParams = CopilotParams()
 
     def resolve(self, path: Path) -> Path:
         return path if path.is_absolute() else PROJECT_ROOT / path
@@ -168,9 +243,15 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=PROJECT_ROOT / ".env", extra="ignore")
 
     postgres_url: str = "postgresql+psycopg://sentinel:sentinel@localhost:5432/sentinel"
+    # The copilot's tools connect with this SELECT-only role (created by `sentinel alerts load`).
+    postgres_ro_password: str = "sentinel_ro"
+    postgres_ro_url: str = "postgresql+psycopg://sentinel_ro:sentinel_ro@localhost:5432/sentinel"
     mlflow_tracking_uri: str = "http://localhost:5000"
     kafka_bootstrap: str = "localhost:19092"
     gemini_api_key: str | None = None
+    ollama_url: str = "http://localhost:11434"
+    # Comma-separated override of copilot.llm.providers, e.g. LLM_PROVIDERS=ollama (offline).
+    llm_providers: str | None = None
     # The API loads this registry alias; if MLflow is unreachable it falls back to the
     # bundle directory written by the last local training run.
     ids_model_uri: str = "models:/ids-classifier@production"

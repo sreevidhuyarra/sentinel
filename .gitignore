@@ -15,6 +15,11 @@ htmlcov/
 # Data lives in DVC (dvc.yaml / *.dvc write their own .gitignore entries)
 /data/*.zip
 data/raw/synthetic/
+# LLM response cache + free-tier call log (runtime state; may hold redacted prompts)
+data/cache/
+# Copilot evaluation run log and resume checkpoint (the final rows are eval_rows.json)
+reports/copilot/eval_run.log
+reports/copilot/*.partial.jsonl
 mlruns/
 mlartifacts/
 *.onnx

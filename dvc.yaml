@@ -156,6 +156,37 @@ stages:
       - reports/adversarial/metrics.json:
           cache: false
 
+  # Module 5 knowledge base: MITRE ATT&CK Enterprise (STIX) + CISA KEV -> hybrid retrieval
+  # index (BM25 + bge-small embeddings; the cross-encoder re-ranker loads at query time).
+  build_knowledge:
+    cmd: sentinel copilot kb
+    deps:
+      - data/raw/knowledge
+      - src/sentinel/copilot/kb.py
+      - src/sentinel/copilot/rag.py
+    outs:
+      - data/processed/knowledge
+      - models/copilot/rag
+
+  # Module 5 prompt-injection guard: rules + classifier (embeddings+LR vs DeBERTa-v3-small),
+  # chosen on validation, tested on held-out phrasings.
+  train_guard:
+    cmd: sentinel copilot guard-train
+    deps:
+      - data/raw/prompt_injections
+      - data/processed/phishing
+      - src/sentinel/copilot/guard.py
+      - src/sentinel/copilot/guard_data.py
+      - src/sentinel/copilot/guard_train.py
+    params:
+      - seed
+      - copilot.guard
+    outs:
+      - models/copilot/guard
+    metrics:
+      - reports/copilot/guard_results.json:
+          cache: false
+
   # Goal G3: train on CIC-IDS2017, score CIC-UNSW-NB15 unchanged. Needs MLflow up.
   cross_dataset:
     cmd: sentinel ids cross-dataset

@@ -27,8 +27,21 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
         combined email verdict evaluated — links left out (email_threshold None), see url_results.md
 - [x] Module 4 — adversarial robustness (ART): `sentinel adversarial run` / DVC `robustness`
       (feature-space FGSM/PGD + transfer, HopSkipJump, problem-space pad×delay; defenses:
-      adversarially trained MLP, hardened LightGBMs, review flag) → reports/adversarial/results.md
-- [ ] Module 5 — SOC copilot (LangGraph, RAG, injection guard)
+      adversarially trained MLP, hardened LightGBMs, review flag) → reports/adversarial/results.md;
+      CI green on 7536846. Review flag not yet served by the API (wire in during integration).
+- [x] Module 5 — SOC copilot (LangGraph, RAG, injection guard) — offline (Ollama) eval done;
+      Gemini eval pending a key in .env
+  - [x] `sentinel.llm`: Gemini REST + Ollama, SQLite cache, per-model RPM/RPD throttle, fallback,
+        reversible redaction (IPs/emails/phones) before any prompt leaves the machine
+  - [x] alerts DB (`sentinel alerts load`): 83,770 network + 793 email alerts in Postgres;
+        `alert_truth` is invisible to the copilot's SELECT-only role `sentinel_ro`
+  - [x] DVC `build_knowledge` (ATT&CK v19.2 + CISA KEV, hybrid RAG) and `train_guard`
+  - [x] graph, rule-based severity, verify/retry, template fallback, API `/alerts`,
+        `/copilot/investigate/{id}`, `/reports/{id}`; red-team suite
+  - [x] gold-set evaluation on Ollama (108 alerts): P@1 81.5%, citations 100% valid,
+        faithfulness 82.6% (same-model judge), key facts 50.7%
+  - [ ] rerun `sentinel copilot evaluate` with Gemini once GEMINI_API_KEY is in .env
+        (needs ~220 requests: raise gemini_rpd / judge_rpd to the account's limits or run over 2 days)
 - [ ] Module 6 — MLOps (Prometheus/Grafana, Evidently, Prefect) + streaming detector + React dashboard
 
 ## Commands (Windows: `make` is not installed, `uv` is not on PATH → `python -m uv` or `.venv\Scripts\*`)
@@ -39,6 +52,7 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
 - `uv run sentinel ids train [--sample dev|full] [--models ...] [--no-register]`
 - `uv run sentinel ids tune --family lightgbm|xgboost`, `uv run sentinel ids imbalance`
 - `uv run sentinel ids cross-dataset [--download]`, `uv run sentinel anomaly train [--studies fusion,holdout,unsw]`
+- `uv run sentinel alerts load [--source network|email|all]` (Postgres up), `uv run sentinel copilot kb|guard-train|investigate <id>|evaluate|redteam` (`--provider ollama` = offline)
 - `uv run sentinel serve` — API on :8000 (loads `ids-classifier` and `anomaly-detector` @production,
   falls back to `models/ids/`, `models/anomaly/`)
 - `dvc repro -s <stage>` runs one stage only; plain `dvc repro <stage>` also reruns stale upstream
@@ -70,6 +84,32 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
 - 'X - Attempted' labels (no payload) → Benign by default (`data.attempted_policy`).
 - 'Infiltration - Portscan' (~72k) → PortScan family; true Infiltration is only 36 flows.
 - Rare classes: Heartbleed 11, WebAttack ~100, Infiltration 36 — use macro-F1 / per-class recall.
+
+## Module 5 notes
+- User has the Gemini free tier only: everything goes through `llm.factory.build_provider`
+  (cache -> throttle -> Gemini, fallback Ollama `llama3.2:3b`). Free-tier prompts may be read by
+  Google reviewers, so prompts are always redacted (`llm.redact.Redactor`). Never send raw alerts.
+- `inline_refs` must keep *properties* named "title"/"default" (bug found: draft lost its title).
+- Ollama on this laptop: ~3 tok/s, ~1-2 min per report; default 4k context is too small (num_ctx 8192).
+- Retrieval (108 gold alerts): hybrid+rerank R@1 81.5%, R@8 90.7%; without the per-family hint
+  sentences R@1 is 17.6% — flow features carry no ATT&CK vocabulary. Misses: Botnet (gets T1102
+  web-service C2), web brute force (family says WebAttack -> T1190), Heartbleed (Unknown anomaly).
+  Do not tune FAMILY_HINTS on the gold set (it is the test set).
+- CVEs only above cross-encoder score 1.0: flow data names no product, irrelevant CVEs score < 0.
+- Guard test (held-out phrasings): rules 71.9% / DeBERTa 69.4% / both 94.8% recall at 0.7% FPR;
+  DeBERTa alone is weak on unseen email phrasings (49.5%), rules cover it. DeBERTa CPU training 2.6 h.
+- Red team (Ollama 3B, 24 alerts): attack success 12.5% naive, 12.5% delimiters+policy only,
+  0% with guard (95.8% detected). All successes were "say it's a false positive" downgrades;
+  severity never changed (rule-based).
+- Detector severity bands are confidence, not impact (nearly all "Critical"): copilot severity
+  starts from family impact (params `copilot.severity`).
+- Gold reports (Ollama 3B): P@1 81.5% == retrieval R@1; every miss is a retrieval miss (the
+  LLM takes the top candidate). Key facts only 50.7%: the 3B model leaves IPs/ports out of prose.
+- Prompts must be deterministic for the cache: every SQL feeding a prompt needs a total
+  ORDER BY (ties in `abs(id - x)` reordered after a Postgres restart and missed the cache).
+- `copilot evaluate` checkpoints to reports/copilot/eval_rows.<generator>.partial.jsonl and
+  resumes; `--fresh` starts over. Long runs: launch detached (Start-Process) — Claude Code
+  background tasks are killed after ~2 h.
 
 ## Module 4 notes
 - Threat model in `sentinel.adversarial.threat`: only CONTROLLABLE features move (44/84), TIMING and

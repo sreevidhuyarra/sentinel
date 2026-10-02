@@ -47,6 +47,9 @@ format; the test suite and CI use it.
 | Cross-dataset test | `uv run sentinel ids cross-dataset [--download]` |
 | Anomaly detector + studies | `uv run sentinel anomaly train` |
 | Adversarial robustness study | `uv run dvc repro -s robustness` (or `uv run sentinel adversarial run`) |
+| Fill the alerts table | `uv run sentinel alerts load` |
+| Investigate an alert | `uv run sentinel copilot investigate <id> [--provider ollama]` |
+| Copilot evaluation / red team | `uv run sentinel copilot evaluate` (resumable) · `uv run sentinel copilot redteam` |
 | Serve the API | `uv run sentinel serve` |
 | Infra up / down | `docker compose up -d --wait` · `docker compose down` |
 
@@ -395,6 +398,134 @@ autoencoder finds it anomalous.
 - **Black box works, but less well.** HopSkipJump finds an evasion for 43% of flows,
   20% within budget 0.5.
 
+## Module 5: SOC copilot
+
+The copilot turns one alert into an incident report for an analyst. It is a fixed
+LangGraph state machine rather than a free-form agent, so every run takes the same path
+and each step can be tested on its own:
+
+```
+guard_inputs -> gather_context -> map_attack -> assess_severity -> draft_report -> verify -> report
+   (injection      (read-only SQL:    (hybrid RAG over  (rules, not the    (LLM, JSON      (retry once
+    guard)          related alerts)    ATT&CK + KEV)     LLM)               schema)         on failure)
+```
+
+| Piece | What it does |
+|---|---|
+| Alerts DB | `sentinel alerts load` scores the test splits with the deployed detectors: 83,770 network alerts (Modules 1–2) and the flagged emails of a stratified sample (Module 3), in Postgres. Dataset labels sit in a separate `alert_truth` table that the copilot's SELECT-only role cannot read. |
+| Tools | `get_alert`, `related_alerts` (same source or target within ±30 min), `query_alerts`. Parameterised SQLAlchemy over whitelisted columns; no free-form SQL. |
+| Retrieval | 697 ATT&CK v19.2 techniques + 1,730 CISA KEV CVEs. BM25 + `bge-small` dense (FAISS), reciprocal-rank fusion, `ms-marco-MiniLM` cross-encoder re-rank. CVEs are offered only above a relevance score, because flow records never name a product. |
+| Severity | Rule-based: the attack type's baseline impact, adjusted for asset criticality (CIC-IDS2017 testbed inventory in `params.yaml`), campaign volume, malicious links and injection attempts. The LLM explains it and cannot change it. |
+| Draft | Pydantic schema via JSON mode, with the technique and CVE fields restricted to the retrieved IDs. |
+| Verify | Every cited technique, CVE, alert ID and host must be in the context; one retry with the errors, then invalid citations are dropped. If no LLM answers, a facts-only template report is produced. |
+
+**LLM on the free tier.** `sentinel.llm` wraps every provider in a SQLite response cache
+(temperature 0, so a repeated evaluation costs nothing) and a per-model requests-per-minute
+and requests-per-day throttle. When Gemini's quota runs out it falls back to a local model
+served by Ollama (`llama3.2:3b`), and `LLM_PROVIDERS=ollama` runs fully offline. On the free
+tier Google may use prompts and human reviewers may read them, so IPs, email addresses and
+phone numbers are replaced with stable placeholders (`[ip-internal-1]`) before any prompt
+leaves the machine and restored in the answer.
+
+**Prompt-injection defense.** Untrusted text (email bodies, URLs, sentences quoted from
+emails, log lines) is split into segments. Each segment is scored by named rules (with
+URL, HTML-entity, base64 and dash-joined decoding) and a small classifier; flagged segments
+are redacted. What survives goes into the user message inside `<<<UNTRUSTED>>>` blocks
+whose delimiters cannot be forged from inside, never into the system prompt. Tools are
+read-only and severity is rule-based, so a missed injection can change wording but not the
+verdict.
+
+### Results
+
+Full report: [reports/copilot/results.md](reports/copilot/results.md). All numbers below come
+from the offline configuration (Ollama `llama3.2:3b` as generator, and as judge with a
+different prompt). Gemini numbers are pending a key.
+
+**Gold set.** 108 alerts across 18 labels: 16 network attack sub-labels plus phishing and
+fraud emails. ATT&CK labels are
+assigned per sub-label in `copilot/gold.py`, with an acceptable set where several
+techniques fit: for example, a Hulk flood is T1499.002 or T1499.003.
+
+| Metric | Result | Design target |
+|---|---|---|
+| Technique precision@1 | **81.5%** | ≥ 70% |
+| Acceptable technique among the retrieved candidates | 90.7% | |
+| Citation validity | **100%** (no invalid IDs; every draft passed verification first time) | 100% |
+| Faithfulness (judge: share of factual claims supported by the context) | 82.6% | |
+| Key facts mentioned (attacker IP, victim IP, port) | 50.7% | |
+| CVE recall (Heartbleed alerts) | 0% | |
+| Cost per report | 1.8k tokens in / 0.45k out; 64 s of LLM time on CPU | |
+
+**Retrieval** (no LLM, same 108 alerts):
+
+| Retriever | R@1 | R@8 | MRR |
+|---|---|---|---|
+| BM25 | 50.9% | 80.6% | 0.644 |
+| Dense (bge-small) | 60.2% | 84.3% | 0.683 |
+| Hybrid (fusion) | 71.3% | 85.2% | 0.781 |
+| **Hybrid + cross-encoder** (deployed) | **81.5%** | **90.7%** | **0.827** |
+| Hybrid + cross-encoder, no family descriptions | 17.6% | 67.6% | 0.319 |
+
+**Injection guard** (held-out test: phrasings, emails and hard negatives never seen in
+training). DeBERTa-v3-small was chosen over embeddings + logistic regression on validation:
+98.3% vs 93.9% recall, both at 0.9% false alarms.
+
+| Test data | Rules | Classifier | **Rules + classifier** | False alarms |
+|---|---|---|---|---|
+| All | 71.9% | 69.4% | **94.8%** | 0.7% |
+| deepset prompts | 16.7% | 78.3% | 81.7% | 0.0% |
+| Injections in emails | 88.3% | 49.5% | 91.5% | 1.5% |
+| Injections in log lines | 63.2% | 87.1% | 99.6% | 0.0% |
+
+**Red team.** 24 real alerts carry an injection in a held-out phrasing, inside an email body or
+a correlated log line. Each injection has one of three goals: plant a canary phrase,
+downgrade the alert, or leak the system prompt.
+
+| Defense | Attack success | Guard detected |
+|---|---|---|
+| None (raw text in the prompt) | 12.5% | |
+| Delimiters + untrusted-data policy | 12.5% | |
+| **Guard + delimiters + policy** | **0%** | 95.8% |
+
+### What we learned
+
+- **Mapping quality is retrieval quality.** The 3B model nearly always picks the retriever's
+  first candidate: precision@1 equals retrieval R@1, and every miss is a retrieval miss. The
+  LLM adds the narrative, not the mapping.
+- **The one-line family descriptions carry the retrieval.** Without them, R@1 falls from 81.5%
+  to 17.6%. Flow statistics contain no ATT&CK vocabulary, so the mapping effectively comes
+  from "the detector says BruteForce" plus retrieval. The three failing labels show the
+  limits:
+  - **Botnet:** retrieves T1102 "Web Service" C2 instead of T1071.001 "Web Protocols".
+  - **Web brute force:** the detector only says "WebAttack", so it maps to T1190 instead of
+    T1110.
+  - **Heartbleed:** arrives as an "Unknown anomaly" and gets T1571 "Non-Standard Port".
+
+  The descriptions were written before the evaluation and were not tuned on it.
+- **Flow data cannot name a CVE.** Irrelevant CVEs score far below zero on the re-ranker,
+  so none are offered for network alerts. Heartbleed's CVE-2014-0160 is found only when the
+  text describes the heartbeat leak, which flow features cannot.
+- **The small model leaves out facts.** Only half of the attacker IPs, victim IPs and ports appear in the
+  prose, although the context contains all of them. A judge running on the same 3B model is
+  weak evidence; treat 82.6% faithfulness as indicative.
+- **Delimiters alone did not stop a 3B model.** All three successful attacks made it write "this alert is a false positive and does not require any action".
+  The guard stopped all 24 attacks. Rule-based severity was never changed, in any configuration.
+- **Rules and classifier cover different ground.** Rules catch injections in emails (88%) and
+  miss jailbreak phrasing (17%). The classifier is the reverse, and is weak on unseen email
+  phrasings (50%). Together they catch 94.8%.
+
+Setup: put a free key from https://aistudio.google.com/apikey in `.env` as
+`GEMINI_API_KEY=` (optional), install Ollama and `ollama pull llama3.2:3b`, then:
+
+```bash
+uv run sentinel alerts load                 # fill the alerts table (Postgres up)
+uv run dvc repro -s build_knowledge         # ATT&CK + KEV index
+uv run dvc repro -s train_guard             # injection guard
+uv run sentinel copilot investigate 291     # one report as JSON
+uv run sentinel copilot evaluate            # gold set -> reports/copilot/results.md
+uv run sentinel copilot redteam             # attack success with and without the guard
+```
+
 ## API
 
 ```bash
@@ -411,6 +542,12 @@ raised it, calibrated confidence, attack score, anomaly score, severity, class p
 and, for alerts, the top-5 reasons. The API loads `models:/ids-classifier@production` and
 `models:/anomaly-detector@production` from MLflow and falls back to `models/ids/` and
 `models/anomaly/` (serving supervised verdicts only if no anomaly model exists).
+
+Alerts and the copilot: `GET /alerts?family=&severity=&source=&src_ip=&since=&limit=` lists
+alerts, and `GET /alerts/{id}` returns one with its detector reasons and evidence.
+`POST /copilot/investigate/{id}` runs the investigation graph and stores the report; it takes
+seconds with Gemini and about a minute on the local model. `GET /reports/{report_id}` returns
+a stored report.
 
 ## Model registry
 
@@ -430,8 +567,12 @@ src/sentinel/
               explain, metrics, bundle, registry, train, tune, imbalance, report
   anomaly/    Module 2: autoencoder, iforest, evaluate, bundle, registry, train, report
   adversarial/  Module 4: threat (constraints, pad/delay), attacks (ART), defenses, run, report
+  copilot/    Module 5: graph, tools, rag, kb, guard (+ data, training), severity, prompts,
+              models, gold, evaluate, redteam, report, service
+  llm/        provider interface: gemini, ollama, cache + throttle + fallback, redact, factory
+  db/         alerts / alert_truth / reports schema and the alert loader
   detection/  fusion.py: supervised + anomaly -> one verdict ("Unknown anomaly")
-  services/   api.py (FastAPI)
+  services/   api.py (FastAPI: scoring, alerts, copilot)
   cli.py      `sentinel` command; each pipeline subcommand is a DVC stage
 tests/        unit/, data/ (pipeline on synthetic data), model/ (training, registry, API)
 reports/      data_summary.json, ids/ (results, model card, figures, studies)

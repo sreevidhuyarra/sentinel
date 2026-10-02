@@ -571,3 +571,79 @@ stages:
       hash: md5
       md5: 1fda7b45af45f86176edb9821d452150
       size: 193
+  build_knowledge:
+    cmd: sentinel copilot kb
+    deps:
+    - path: data/raw/knowledge
+      hash: md5
+      md5: 74f45ae843f401764e6ee70d002b6c84.dir
+      size: 55596314
+      nfiles: 2
+    - path: src/sentinel/copilot/kb.py
+      hash: md5
+      md5: 6b3a008f0a4db121951f70c998b18850
+      size: 5421
+    - path: src/sentinel/copilot/rag.py
+      hash: md5
+      md5: f63f099cb64d542fe99930c7bbf034e6
+      size: 7964
+    outs:
+    - path: data/processed/knowledge
+      hash: md5
+      md5: 14013621dd18faf0f0adf23b28c7fd76.dir
+      size: 481470
+      nfiles: 2
+    - path: models/copilot/rag
+      hash: md5
+      md5: 2355225cbf69576d0be38a3b07bebb2d.dir
+      size: 4672393
+      nfiles: 3
+  train_guard:
+    cmd: sentinel copilot guard-train
+    deps:
+    - path: data/processed/phishing
+      hash: md5
+      md5: f81c308d8ad421019178e5f46031f960.dir
+      size: 73486809
+      nfiles: 1
+    - path: data/raw/prompt_injections
+      hash: md5
+      md5: 438d098420df6930daf1c0d14e691ef5.dir
+      size: 51215
+      nfiles: 2
+    - path: src/sentinel/copilot/guard.py
+      hash: md5
+      md5: c87c986cdae8c2f0983cd1f5198174fe
+      size: 8295
+    - path: src/sentinel/copilot/guard_data.py
+      hash: md5
+      md5: e2bd70a739bba1967853ecc5851b091f
+      size: 8564
+    - path: src/sentinel/copilot/guard_train.py
+      hash: md5
+      md5: 77e99cad9c9e07f373fce33cbf615fea
+      size: 12046
+    params:
+      params.yaml:
+        copilot.guard:
+          deepset_dir: data/raw/prompt_injections
+          n_train: 4000
+          n_val: 1000
+          n_test: 2000
+          max_fpr: 0.01
+          train_deberta: true
+          epochs: 2
+          lr: 3e-05
+          batch_size: 16
+          max_len: 128
+        seed: 42
+    outs:
+    - path: models/copilot/guard
+      hash: md5
+      md5: 916c36fffdcf5301509019462acd5230.dir
+      size: 575940292
+      nfiles: 5
+    - path: reports/copilot/guard_results.json
+      hash: md5
+      md5: 4f1698e5a0e6cbae2e2b1fcf4fe082af
+      size: 3277
