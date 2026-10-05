@@ -44,7 +44,11 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
         verify fact checks, behaviour descriptions (LLM context only), redacted retry prompts
   - [x] final test-set run on Gemini (2026-10-03): P@1 78.7%, faithfulness 92.4%, key facts
         97.9%, citations 100%, 5 s/report; Ollama baseline kept in reports/copilot/baseline_ollama/
-  - [ ] optional: red team on Gemini (`copilot redteam --provider gemini`, ~72 requests)
+  - [x] behaviour rewording (dev: P@1 80.0 -> 85.7%); final Gemini test run P@1 87.0% (94/108),
+        faithfulness 92.6%, key facts 96.8%; earlier Gemini run kept in gemini_before_rewording/
+  - [x] red team on Gemini: attack success 20.8% none / 12.5% delimiters / 4.2% guard (1/24)
+  - [x] guard sentence-pair scoring (`copilot guard-rethreshold`): Gemini red team 4.2% -> 0%,
+        guard detects 24/24
 - [ ] Module 6 — MLOps (Prometheus/Grafana, Evidently, Prefect) + streaming detector + React dashboard
 
 ## Commands (Windows: `make` is not installed, `uv` is not on PATH → `python -m uv` or `.venv\Scripts\*`)
@@ -100,6 +104,7 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
   Do not tune FAMILY_HINTS on the gold set (it is the test set).
 - CVEs only above cross-encoder score 1.0: flow data names no product, irrelevant CVEs score < 0.
 - Guard test (held-out phrasings): rules 71.9% / DeBERTa 69.4% / both 94.8% recall at 0.7% FPR;
+  with sentence-pair scoring (threshold re-chosen on val 0.958 -> 0.996) both 96.8% at 0.9% FPR.
   DeBERTa alone is weak on unseen email phrasings (49.5%), rules cover it. DeBERTa CPU training 2.6 h.
 - Red team (Ollama 3B, 24 alerts): attack success 12.5% naive, 12.5% delimiters+policy only,
   0% with guard (95.8% detected). All successes were "say it's a false positive" downgrades;

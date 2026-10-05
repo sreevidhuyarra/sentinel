@@ -44,22 +44,36 @@ def describe(alert: dict[str, Any], act: dict[str, Any], cfg: BehaviourParams) -
     """Behaviour sentences, most specific first; empty when nothing stands out."""
     if not act:
         return []
-    out: list[str] = []
+    out: list[str] = []  # what this connection (and its source -> target pair) did
+    context: list[str] = []  # what the same source did elsewhere in the window
     port = alert.get("dst_port")
     src_internal, dst_internal = _private(alert.get("src_ip")), _private(alert.get("dst_ip"))
     fo, fi, pair, flow = act["from_source"], act["to_target"], act["pair"], act["flow"]
     window = act["window_minutes"]
 
+    # A scan is this connection's behaviour only if the pair itself spans many ports; a
+    # single connection from a host that also scans is something else (e.g. its C2 link),
+    # and the scan is context.
+    probe = pair["ports"] >= max(2, cfg.scan_ports // 2)
     if fo["ports"] >= cfg.scan_ports:
-        out.append(
+        scan = (
             f"one source probed {fo['ports']} different ports on {fo['hosts']} host(s) within "
             f"{window} minutes, the pattern of a port scan for network service discovery"
         )
+        if probe:
+            out.append(scan)
+        else:
+            who = "This internal source" if src_internal else "This source"
+            context.append(
+                f"{who} also probed {fo['ports']} different ports on {fo['hosts']} host(s) "
+                f"within {window} minutes (port scanning elsewhere; this connection is not a probe)"
+            )
     elif fo["hosts"] >= cfg.sweep_hosts:
-        out.append(
+        sweep = (
             f"one source contacted {fo['hosts']} different hosts within {window} minutes "
             "(a network sweep for remote system discovery)"
         )
+        (out if probe else context).append(sweep)
 
     fwd = pair.get("fwd_bytes")
     alike = fwd is not None and fwd["cv"] <= cfg.alike_cv
@@ -85,10 +99,19 @@ def describe(alert: dict[str, Any], act: dict[str, Any], cfg: BehaviourParams) -
             if fi["sources"] >= cfg.flood_sources
             else "from a single source"
         )
-        out.append(
-            f"{fi['alerts']} connections to one target within {window} minutes {who}: a "
-            "high-volume flood that can exhaust the service (denial of service)"
-        )
+        if port in WEB_PORTS:
+            # Requests to one web service exhaust that service; "flood" alone reads as a
+            # volumetric network flood (a different ATT&CK technique).
+            out.append(
+                f"{fi['alerts']} {WEB_PORTS[port]} connections to the web service on one "
+                f"server within {window} minutes {who}: application requests sent to exhaust "
+                "the web service (service exhaustion, endpoint denial of service)"
+            )
+        else:
+            out.append(
+                f"{fi['alerts']} connections to one target within {window} minutes {who}: "
+                "a volumetric flood saturating the target (network denial of service)"
+            )
 
     # This flow's own statistics (pair means are skewed by a few extreme flows).
     fwd_b = flow.get("total_length_of_fwd_packet") or 0
@@ -100,6 +123,8 @@ def describe(alert: dict[str, Any], act: dict[str, Any], cfg: BehaviourParams) -
         and pps is not None
         and pps <= cfg.slow_pps
         and bwd_b <= cfg.slow_bwd_bytes
+        # A slow-rate attack targets our server; a quiet outbound session is something else.
+        and dst_internal is not False
     ):
         out.append(
             f"a long-lived connection ({dur_s:.0f} s) that sends very few packets and gets "
@@ -145,4 +170,4 @@ def describe(alert: dict[str, Any], act: dict[str, Any], cfg: BehaviourParams) -
             f"a few {WEB_PORTS[port]} requests carrying large request bodies ({fwd_b:,.0f} "
             "bytes): possible injection or exploit attempt against a public-facing web application"
         )
-    return out
+    return out + context

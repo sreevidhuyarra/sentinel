@@ -181,14 +181,16 @@ class DebertaGuard:
 # -- evaluation ------------------------------------------------------------------------------
 
 
-def _doc_scores(clf: Any, texts: list[str]) -> list[float]:
-    """Max classifier score over a document's segments (+ whole text when short)."""
-    g = Guard(clf, threshold=2.0, use_rules=False)  # threshold > 1: collect, never flag
-    out = []
-    for t in texts:
-        segs = segments(t)
-        pieces = [*segs, t] if len(segs) > 1 and len(t) <= 600 else segs
-        out.append(max((x or 0.0 for x in g._scores(pieces)), default=0.0))
+def _doc_scores(clf: Any, texts: list[str], pairs: bool = True) -> list[float]:
+    """Max classifier score over everything `Guard.scan` scores in each document."""
+    g = Guard(clf, threshold=2.0, use_rules=False, pairs=pairs)  # never flags; just pieces
+    pieces = [g.pieces(t) for t in texts]
+    flat = [p for ps in pieces for p in ps]
+    scores = list(clf(flat)) if flat else []  # one batched pass over all documents
+    out, i = [], 0
+    for ps in pieces:
+        out.append(max(scores[i : i + len(ps)], default=0.0))
+        i += len(ps)
     return out
 
 
@@ -204,11 +206,13 @@ def choose_threshold(
     return 1.0
 
 
-def evaluate(docs: pl.DataFrame, clf: Any, threshold: float) -> dict[str, Any]:
+def evaluate(docs: pl.DataFrame, clf: Any, threshold: float, pairs: bool = True) -> dict[str, Any]:
     out: dict[str, Any] = {}
     texts, y = docs["text"].to_list(), np.array(docs["label"].to_list())
-    rules = np.array(Guard(None).flags(texts))
-    clf_only = np.array(_doc_scores(clf, texts)) >= threshold if clf else np.zeros(len(y), bool)
+    rules = np.array(Guard(None, pairs=pairs).flags(texts))
+    clf_only = (
+        np.array(_doc_scores(clf, texts, pairs)) >= threshold if clf else np.zeros(len(y), bool)
+    )
     both = rules | clf_only
     sources = docs["source"].to_numpy()
     for name, flag in (("rules", rules), ("classifier", clf_only), ("rules+classifier", both)):
@@ -261,10 +265,10 @@ def run(params: Params, reports: Path | None = None, out_dir: Path | None = None
         secs["deberta"] = time.perf_counter() - t0
 
     yv = np.array(val["label"].to_list())
-    rules_v = np.array(Guard(None).flags(val["text"].to_list()))
+    rules_v = np.array(Guard(None, pairs=g.pairs).flags(val["text"].to_list()))
     selection: dict[str, Any] = {}
     for name, clf in candidates.items():
-        sv = np.array(_doc_scores(clf, val["text"].to_list()))
+        sv = np.array(_doc_scores(clf, val["text"].to_list(), g.pairs))
         thr = choose_threshold(sv, yv, rules_v, g.max_fpr)
         flag = rules_v | (sv >= thr)
         selection[name] = {
@@ -278,11 +282,14 @@ def run(params: Params, reports: Path | None = None, out_dir: Path | None = None
     clf, thr = candidates[best], selection[best]["threshold"]
 
     t0 = time.perf_counter()
-    test_metrics = evaluate(test, clf, thr)
+    test_metrics = evaluate(test, clf, thr, g.pairs)
     per_doc_ms = 1000 * (time.perf_counter() - t0) / len(test) / 2
     clf.save(out_dir)
     (out_dir / "guard.json").write_text(
-        json.dumps({"classifier": best, "threshold": thr, "max_fpr": g.max_fpr}, indent=2)
+        json.dumps(
+            {"classifier": best, "threshold": thr, "max_fpr": g.max_fpr, "pairs": g.pairs},
+            indent=2,
+        )
     )
     results = {
         "data": {
@@ -298,6 +305,59 @@ def run(params: Params, reports: Path | None = None, out_dir: Path | None = None
     }
     reports.mkdir(parents=True, exist_ok=True)
     (reports / "guard_results.json").write_text(json.dumps(results, indent=2))
+    from sentinel.copilot.report import write_markdown
+
+    write_markdown(reports)
+    return results
+
+
+def rethreshold(
+    params: Params, reports: Path | None = None, out_dir: Path | None = None
+) -> dict[str, Any]:
+    """Re-choose the saved classifier's threshold for the current scoring (e.g. pairs on).
+
+    Scoring more pieces per document (adjacent sentence pairs) raises the chance of a false
+    alarm, so the threshold is chosen again on validation for the same false-alarm budget,
+    without retraining. Test is then scored once and the change is recorded in the results.
+    """
+    g = params.copilot.guard
+    reports = reports or params.resolve(Path("reports/copilot"))
+    out_dir = out_dir or params.resolve(Path("models/copilot/guard"))
+    cfg = json.loads((out_dir / "guard.json").read_text())
+    clf: Any = (
+        DebertaGuard.load(out_dir) if cfg["classifier"] == "deberta" else EmbedLR.load(out_dir)
+    )
+    emails = pl.read_parquet(params.resolve(params.phishing.processed_dir) / "emails.parquet")
+    docs = guard_data.build(
+        emails.select("text", "split"),
+        params.resolve(g.deepset_dir),
+        params.seed,
+        {"train": g.n_train, "val": g.n_val, "test": g.n_test},
+    )
+    val, test = docs.filter(pl.col("split") == "val"), docs.filter(pl.col("split") == "test")
+    yv = np.array(val["label"].to_list())
+    rules_v = np.array(Guard(None, pairs=g.pairs).flags(val["text"].to_list()))
+    sv = np.array(_doc_scores(clf, val["text"].to_list(), g.pairs))
+    thr = choose_threshold(sv, yv, rules_v, g.max_fpr)
+    flag = rules_v | (sv >= thr)
+    log.info("rethreshold (pairs=%s): %.4f -> %.4f", g.pairs, cfg["threshold"], thr)
+    t0 = time.perf_counter()
+    test_metrics = evaluate(test, clf, thr, g.pairs)
+    per_doc_ms = 1000 * (time.perf_counter() - t0) / len(test) / 2
+    results: dict[str, Any] = json.loads((reports / "guard_results.json").read_text())
+    results["previous"] = {
+        "threshold": cfg["threshold"],
+        "pairs": cfg.get("pairs", False),
+        "test": results["test"],
+    }
+    results["selection"][cfg["classifier"]].update(
+        threshold=thr, val_recall=float(flag[yv == 1].mean()), val_fpr=float(flag[yv == 0].mean())
+    )
+    results.update(test=test_metrics, ms_per_document=per_doc_ms, pairs=g.pairs)
+    (reports / "guard_results.json").write_text(json.dumps(results, indent=2))
+    (out_dir / "guard.json").write_text(
+        json.dumps({**cfg, "threshold": thr, "max_fpr": g.max_fpr, "pairs": g.pairs}, indent=2)
+    )
     from sentinel.copilot.report import write_markdown
 
     write_markdown(reports)

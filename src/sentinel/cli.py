@@ -326,6 +326,24 @@ def copilot_guard_train(params_file: Path | None = None) -> None:
     )
 
 
+@copilot_app.command("guard-rethreshold")
+def copilot_guard_rethreshold(params_file: Path | None = None) -> None:
+    """Re-choose the trained guard's threshold on validation for the current scoring
+    (e.g. after enabling sentence-pair scoring), then score the guard test set once."""
+    from sentinel.copilot.guard_train import rethreshold
+
+    out = rethreshold(load_params(params_file))
+    typer.echo(
+        json.dumps(
+            {
+                "previous": out["previous"]["test"]["rules+classifier"]["all"],
+                "now": out["test"]["rules+classifier"]["all"],
+            },
+            indent=2,
+        )
+    )
+
+
 def _providers(provider: str | None) -> list[str] | None:
     return [x.strip() for x in provider.split(",")] if provider else None
 

@@ -613,16 +613,16 @@ stages:
       nfiles: 2
     - path: src/sentinel/copilot/guard.py
       hash: md5
-      md5: c87c986cdae8c2f0983cd1f5198174fe
-      size: 8295
+      md5: a532c7d4a07211ec7a55a1114cfc927a
+      size: 9442
     - path: src/sentinel/copilot/guard_data.py
       hash: md5
       md5: e2bd70a739bba1967853ecc5851b091f
       size: 8564
     - path: src/sentinel/copilot/guard_train.py
       hash: md5
-      md5: 77e99cad9c9e07f373fce33cbf615fea
-      size: 12046
+      md5: 1858fba625517a4bd1f0f5c9e4f6d696
+      size: 14524
     params:
       params.yaml:
         copilot.guard:
@@ -631,6 +631,7 @@ stages:
           n_val: 1000
           n_test: 2000
           max_fpr: 0.01
+          pairs: true
           train_deberta: true
           epochs: 2
           lr: 3e-05
@@ -640,10 +641,10 @@ stages:
     outs:
     - path: models/copilot/guard
       hash: md5
-      md5: 916c36fffdcf5301509019462acd5230.dir
-      size: 575940292
+      md5: 4b11648f4538f73a778172c99d72b9a3.dir
+      size: 575940310
       nfiles: 5
     - path: reports/copilot/guard_results.json
       hash: md5
-      md5: 4f1698e5a0e6cbae2e2b1fcf4fe082af
-      size: 3277
+      md5: 291d7efd81b96044a732f3becc3ef31a
+      size: 5818

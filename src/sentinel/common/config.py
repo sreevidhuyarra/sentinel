@@ -168,6 +168,7 @@ class GuardParams(BaseModel):
     n_val: int = 1000
     n_test: int = 2000
     max_fpr: float = Field(0.01, gt=0, lt=1)  # false alarms on clean validation documents
+    pairs: bool = True  # also score adjacent sentence pairs (split instructions)
     train_deberta: bool = True
     epochs: int = 2
     lr: float = 3e-5

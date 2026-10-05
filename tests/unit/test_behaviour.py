@@ -50,18 +50,20 @@ def test_password_guessing_needs_alike_repeated_connections() -> None:
     assert any("login brute force" in s for s in web)
     # Under a flood, identical requests are the flood, not a login brute force.
     flooded = describe(_alert(80), _act(pair=alike, to_target={"alerts": 9000}), CFG)
-    assert not any("login" in s for s in flooded) and any("flood" in s for s in flooded)
+    assert not any("login" in s for s in flooded) and any(
+        "exhaust the web service" in s for s in flooded
+    )
     # Login traffic is never called a flood, however many connections it makes.
     ssh = describe(_alert(22), _act(pair=alike, to_target={"alerts": 9000}), CFG)
-    assert not any("flood" in s for s in ssh)
+    assert not any("denial of service" in s for s in ssh)
 
 
 def test_flood_slow_beacon_leak() -> None:
     flood = describe(_alert(80), _act(to_target={"alerts": 5000, "sources": 40}), CFG)
-    assert any("distributed" in s and "flood" in s for s in flood)
+    assert any("distributed" in s and "service exhaustion" in s for s in flood)
     # A port scan hitting one host many times is a scan, not a flood.
     scan = _act(from_source={"ports": 900}, to_target={"alerts": 5000}, pair={"ports": 900})
-    assert not any("flood" in s for s in describe(_alert(80), scan, CFG))
+    assert not any("denial of service" in s for s in describe(_alert(80), scan, CFG))
     slow = {"flow_duration": 9e7, "flow_packets_s": 0.5, "total_length_of_bwd_packet": 0.0}
     assert any("slow-rate" in s for s in describe(_alert(80), _act(flow=slow), CFG))
     answered = {**slow, "total_length_of_bwd_packet": 180_000.0}  # a long but normal session
@@ -79,3 +81,29 @@ def test_flood_slow_beacon_leak() -> None:
 def test_quiet_traffic_and_emails_say_nothing() -> None:
     assert describe(_alert(443), _act(), CFG) == []
     assert describe({"source": "email"}, {}, CFG) == []
+
+
+def test_volumetric_flood_on_non_web_ports() -> None:
+    out = describe(_alert(53), _act(to_target={"alerts": 5000, "sources": 40}), CFG)
+    assert any("volumetric flood" in s for s in out)
+
+
+def test_scan_is_context_when_this_connection_is_not_a_probe() -> None:
+    # A compromised internal host beaconing out on 8080 while it also scans the network.
+    act = _act(
+        from_source={"ports": 1033, "hosts": 27},
+        pair={"alerts": 30, "ports": 1, "interval_median_s": 140.0, "interval_cv": 0.1},
+    )
+    out = describe(_alert(8080, "192.168.10.8", "205.174.165.73"), act, CFG)
+    assert "beaconing" in out[0]  # this connection's own behaviour comes first
+    assert any(s.startswith("This internal source also probed") for s in out[1:])
+    assert not any("pattern of a port scan" in s for s in out)
+    # The scanning flows themselves are still described as a scan.
+    probe = _act(from_source={"ports": 1033, "hosts": 27}, pair={"alerts": 900, "ports": 900})
+    assert "pattern of a port scan" in describe(_alert(445), probe, CFG)[0]
+
+
+def test_slow_rate_needs_an_internal_target() -> None:
+    slow = {"flow_duration": 9e7, "flow_packets_s": 0.5, "total_length_of_bwd_packet": 0.0}
+    outbound = describe(_alert(8080, "192.168.10.8", "205.174.165.73"), _act(flow=slow), CFG)
+    assert not any("slow-rate" in s for s in outbound)

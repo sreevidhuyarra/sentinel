@@ -167,7 +167,7 @@ copilot:
     ollama_model: llama3.2:3b
     # Free-tier budget: set these to your limits at https://aistudio.google.com/rate-limit.
     gemini_rpm: 8
-    gemini_rpd: 200
+    gemini_rpd: 450
     # Evaluation judge: a different model from the generator.
     # Flash models allow only ~10 free requests/day on this key; Flash-Lite has room.
     judge_model: gemini-3.1-flash-lite
@@ -195,6 +195,7 @@ copilot:
     n_val: 1000
     n_test: 2000
     max_fpr: 0.01   # false alarms allowed on clean validation documents
+    pairs: true     # also score adjacent sentence pairs (instructions split in two)
     train_deberta: true
     epochs: 2
     lr: 0.00003

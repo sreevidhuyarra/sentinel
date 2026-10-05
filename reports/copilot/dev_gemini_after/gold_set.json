@@ -1,0 +1,1755 @@
+[
+  {
+    "alert_id": 48090,
+    "label": "Portscan",
+    "predicted_family": "PortScan",
+    "primary": "T1046",
+    "acceptable": [
+      "T1046",
+      "T1595",
+      "T1595.001",
+      "T1595.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "90"
+    ]
+  },
+  {
+    "alert_id": 38637,
+    "label": "Infiltration - Portscan",
+    "predicted_family": "PortScan",
+    "primary": "T1046",
+    "acceptable": [
+      "T1046"
+    ],
+    "cves": [],
+    "key_facts": [
+      "192.168.10.8",
+      "192.168.10.14",
+      "43977"
+    ]
+  },
+  {
+    "alert_id": 66701,
+    "label": "DDoS",
+    "predicted_family": "DDoS",
+    "primary": "T1498.001",
+    "acceptable": [
+      "T1498",
+      "T1498.001",
+      "T1499",
+      "T1499.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 5256,
+    "label": "DoS Hulk",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 34929,
+    "label": "DoS GoldenEye",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 1924,
+    "label": "DoS Slowloris",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 2693,
+    "label": "DoS Slowhttptest",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 457,
+    "label": "FTP-Patator",
+    "predicted_family": "BruteForce",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "21"
+    ]
+  },
+  {
+    "alert_id": 1189,
+    "label": "SSH-Patator",
+    "predicted_family": "BruteForce",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "22"
+    ]
+  },
+  {
+    "alert_id": 36619,
+    "label": "Web Attack - Brute Force",
+    "predicted_family": "WebAttack",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 36636,
+    "label": "Web Attack - SQL Injection",
+    "predicted_family": "WebAttack",
+    "primary": "T1190",
+    "acceptable": [
+      "T1190"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 36632,
+    "label": "Web Attack - XSS",
+    "predicted_family": "WebAttack",
+    "primary": "T1190",
+    "acceptable": [
+      "T1059.007",
+      "T1189",
+      "T1190"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 46074,
+    "label": "Botnet",
+    "predicted_family": "Bot",
+    "primary": "T1071.001",
+    "acceptable": [
+      "T1071",
+      "T1071.001",
+      "T1571"
+    ],
+    "cves": [],
+    "key_facts": [
+      "192.168.10.15",
+      "205.174.165.73",
+      "8080"
+    ]
+  },
+  {
+    "alert_id": 36887,
+    "label": "Infiltration",
+    "predicted_family": "Infiltration",
+    "primary": "T1204.002",
+    "acceptable": [
+      "T1071",
+      "T1071.001",
+      "T1105",
+      "T1204",
+      "T1204.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "192.168.10.8",
+      "205.174.165.73",
+      "444"
+    ]
+  },
+  {
+    "alert_id": 36616,
+    "label": "Heartbleed",
+    "predicted_family": "DoS",
+    "primary": "T1190",
+    "acceptable": [
+      "T1190",
+      "T1212"
+    ],
+    "cves": [
+      "CVE-2014-0160"
+    ],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.51",
+      "444"
+    ]
+  },
+  {
+    "alert_id": 83960,
+    "label": "phishing",
+    "predicted_family": "Phishing/Spam",
+    "primary": "T1566.002",
+    "acceptable": [
+      "T1566",
+      "T1566.001",
+      "T1566.002",
+      "T1598",
+      "T1598.002",
+      "T1598.003"
+    ],
+    "cves": [],
+    "key_facts": []
+  },
+  {
+    "alert_id": 84015,
+    "label": "fraud",
+    "predicted_family": "Phishing/Spam",
+    "primary": "T1598.003",
+    "acceptable": [
+      "T1534",
+      "T1566",
+      "T1566.002",
+      "T1598",
+      "T1598.003"
+    ],
+    "cves": [],
+    "key_facts": []
+  },
+  {
+    "alert_id": 48149,
+    "label": "Portscan",
+    "predicted_family": "PortScan",
+    "primary": "T1046",
+    "acceptable": [
+      "T1046",
+      "T1595",
+      "T1595.001",
+      "T1595.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "9503"
+    ]
+  },
+  {
+    "alert_id": 41404,
+    "label": "Infiltration - Portscan",
+    "predicted_family": "PortScan",
+    "primary": "T1046",
+    "acceptable": [
+      "T1046"
+    ],
+    "cves": [],
+    "key_facts": [
+      "192.168.10.8",
+      "192.168.10.19",
+      "1074"
+    ]
+  },
+  {
+    "alert_id": 69269,
+    "label": "DDoS",
+    "predicted_family": "DDoS",
+    "primary": "T1498.001",
+    "acceptable": [
+      "T1498",
+      "T1498.001",
+      "T1499",
+      "T1499.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 14332,
+    "label": "DoS Hulk",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 35094,
+    "label": "DoS GoldenEye",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 2110,
+    "label": "DoS Slowloris",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 2727,
+    "label": "DoS Slowhttptest",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 517,
+    "label": "FTP-Patator",
+    "predicted_family": "BruteForce",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "21"
+    ]
+  },
+  {
+    "alert_id": 1473,
+    "label": "SSH-Patator",
+    "predicted_family": "BruteForce",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "22"
+    ]
+  },
+  {
+    "alert_id": 36620,
+    "label": "Web Attack - Brute Force",
+    "predicted_family": "WebAttack",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 36637,
+    "label": "Web Attack - SQL Injection",
+    "predicted_family": "WebAttack",
+    "primary": "T1190",
+    "acceptable": [
+      "T1190"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 36633,
+    "label": "Web Attack - XSS",
+    "predicted_family": "WebAttack",
+    "primary": "T1190",
+    "acceptable": [
+      "T1059.007",
+      "T1189",
+      "T1190"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 46083,
+    "label": "Botnet",
+    "predicted_family": "Bot",
+    "primary": "T1071.001",
+    "acceptable": [
+      "T1071",
+      "T1071.001",
+      "T1571"
+    ],
+    "cves": [],
+    "key_facts": [
+      "192.168.10.15",
+      "205.174.165.73",
+      "8080"
+    ]
+  },
+  {
+    "alert_id": 36944,
+    "label": "Infiltration",
+    "predicted_family": "Infiltration",
+    "primary": "T1204.002",
+    "acceptable": [
+      "T1071",
+      "T1071.001",
+      "T1105",
+      "T1204",
+      "T1204.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "192.168.10.8",
+      "205.174.165.73",
+      "444"
+    ]
+  },
+  {
+    "alert_id": 36617,
+    "label": "Heartbleed",
+    "predicted_family": "Unknown anomaly",
+    "primary": "T1190",
+    "acceptable": [
+      "T1190",
+      "T1212"
+    ],
+    "cves": [
+      "CVE-2014-0160"
+    ],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.51",
+      "444"
+    ]
+  },
+  {
+    "alert_id": 83963,
+    "label": "phishing",
+    "predicted_family": "Phishing/Spam",
+    "primary": "T1566.002",
+    "acceptable": [
+      "T1566",
+      "T1566.001",
+      "T1566.002",
+      "T1598",
+      "T1598.002",
+      "T1598.003"
+    ],
+    "cves": [],
+    "key_facts": []
+  },
+  {
+    "alert_id": 84031,
+    "label": "fraud",
+    "predicted_family": "Phishing/Spam",
+    "primary": "T1598.003",
+    "acceptable": [
+      "T1534",
+      "T1566",
+      "T1566.002",
+      "T1598",
+      "T1598.003"
+    ],
+    "cves": [],
+    "key_facts": []
+  },
+  {
+    "alert_id": 54407,
+    "label": "Portscan",
+    "predicted_family": "PortScan",
+    "primary": "T1046",
+    "acceptable": [
+      "T1046",
+      "T1595",
+      "T1595.001",
+      "T1595.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "1113"
+    ]
+  },
+  {
+    "alert_id": 41830,
+    "label": "Infiltration - Portscan",
+    "predicted_family": "PortScan",
+    "primary": "T1046",
+    "acceptable": [
+      "T1046"
+    ],
+    "cves": [],
+    "key_facts": [
+      "192.168.10.8",
+      "192.168.10.19",
+      "1"
+    ]
+  },
+  {
+    "alert_id": 72596,
+    "label": "DDoS",
+    "predicted_family": "DDoS",
+    "primary": "T1498.001",
+    "acceptable": [
+      "T1498",
+      "T1498.001",
+      "T1499",
+      "T1499.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 17221,
+    "label": "DoS Hulk",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 35604,
+    "label": "DoS GoldenEye",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 2144,
+    "label": "DoS Slowloris",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 2765,
+    "label": "DoS Slowhttptest",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 553,
+    "label": "FTP-Patator",
+    "predicted_family": "BruteForce",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "21"
+    ]
+  },
+  {
+    "alert_id": 1585,
+    "label": "SSH-Patator",
+    "predicted_family": "BruteForce",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "22"
+    ]
+  },
+  {
+    "alert_id": 36623,
+    "label": "Web Attack - Brute Force",
+    "predicted_family": "WebAttack",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 36638,
+    "label": "Web Attack - SQL Injection",
+    "predicted_family": "WebAttack",
+    "primary": "T1190",
+    "acceptable": [
+      "T1190"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 36634,
+    "label": "Web Attack - XSS",
+    "predicted_family": "WebAttack",
+    "primary": "T1190",
+    "acceptable": [
+      "T1059.007",
+      "T1189",
+      "T1190"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 46091,
+    "label": "Botnet",
+    "predicted_family": "Bot",
+    "primary": "T1071.001",
+    "acceptable": [
+      "T1071",
+      "T1071.001",
+      "T1571"
+    ],
+    "cves": [],
+    "key_facts": [
+      "192.168.10.14",
+      "205.174.165.73",
+      "8080"
+    ]
+  },
+  {
+    "alert_id": 37128,
+    "label": "Infiltration",
+    "predicted_family": "Infiltration",
+    "primary": "T1204.002",
+    "acceptable": [
+      "T1071",
+      "T1071.001",
+      "T1105",
+      "T1204",
+      "T1204.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "192.168.10.8",
+      "205.174.165.73",
+      "444"
+    ]
+  },
+  {
+    "alert_id": 83964,
+    "label": "phishing",
+    "predicted_family": "Phishing/Spam",
+    "primary": "T1566.002",
+    "acceptable": [
+      "T1566",
+      "T1566.001",
+      "T1566.002",
+      "T1598",
+      "T1598.002",
+      "T1598.003"
+    ],
+    "cves": [],
+    "key_facts": []
+  },
+  {
+    "alert_id": 84032,
+    "label": "fraud",
+    "predicted_family": "Phishing/Spam",
+    "primary": "T1598.003",
+    "acceptable": [
+      "T1534",
+      "T1566",
+      "T1566.002",
+      "T1598",
+      "T1598.003"
+    ],
+    "cves": [],
+    "key_facts": []
+  },
+  {
+    "alert_id": 54513,
+    "label": "Portscan",
+    "predicted_family": "PortScan",
+    "primary": "T1046",
+    "acceptable": [
+      "T1046",
+      "T1595",
+      "T1595.001",
+      "T1595.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "898"
+    ]
+  },
+  {
+    "alert_id": 41953,
+    "label": "Infiltration - Portscan",
+    "predicted_family": "PortScan",
+    "primary": "T1046",
+    "acceptable": [
+      "T1046"
+    ],
+    "cves": [],
+    "key_facts": [
+      "192.168.10.8",
+      "192.168.10.25",
+      "6025"
+    ]
+  },
+  {
+    "alert_id": 73377,
+    "label": "DDoS",
+    "predicted_family": "DDoS",
+    "primary": "T1498.001",
+    "acceptable": [
+      "T1498",
+      "T1498.001",
+      "T1499",
+      "T1499.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 25289,
+    "label": "DoS Hulk",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 35678,
+    "label": "DoS GoldenEye",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 2219,
+    "label": "DoS Slowloris",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 2805,
+    "label": "DoS Slowhttptest",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 807,
+    "label": "FTP-Patator",
+    "predicted_family": "BruteForce",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "21"
+    ]
+  },
+  {
+    "alert_id": 1612,
+    "label": "SSH-Patator",
+    "predicted_family": "BruteForce",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "22"
+    ]
+  },
+  {
+    "alert_id": 36626,
+    "label": "Web Attack - Brute Force",
+    "predicted_family": "WebAttack",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 36635,
+    "label": "Web Attack - XSS",
+    "predicted_family": "WebAttack",
+    "primary": "T1190",
+    "acceptable": [
+      "T1059.007",
+      "T1189",
+      "T1190"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 46102,
+    "label": "Botnet",
+    "predicted_family": "Bot",
+    "primary": "T1071.001",
+    "acceptable": [
+      "T1071",
+      "T1071.001",
+      "T1571"
+    ],
+    "cves": [],
+    "key_facts": [
+      "192.168.10.5",
+      "205.174.165.73",
+      "8080"
+    ]
+  },
+  {
+    "alert_id": 37331,
+    "label": "Infiltration",
+    "predicted_family": "Infiltration",
+    "primary": "T1204.002",
+    "acceptable": [
+      "T1071",
+      "T1071.001",
+      "T1105",
+      "T1204",
+      "T1204.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "192.168.10.8",
+      "205.174.165.73",
+      "444"
+    ]
+  },
+  {
+    "alert_id": 83966,
+    "label": "phishing",
+    "predicted_family": "Phishing/Spam",
+    "primary": "T1566.002",
+    "acceptable": [
+      "T1566",
+      "T1566.001",
+      "T1566.002",
+      "T1598",
+      "T1598.002",
+      "T1598.003"
+    ],
+    "cves": [],
+    "key_facts": []
+  },
+  {
+    "alert_id": 84033,
+    "label": "fraud",
+    "predicted_family": "Phishing/Spam",
+    "primary": "T1598.003",
+    "acceptable": [
+      "T1534",
+      "T1566",
+      "T1566.002",
+      "T1598",
+      "T1598.003"
+    ],
+    "cves": [],
+    "key_facts": []
+  },
+  {
+    "alert_id": 58438,
+    "label": "Portscan",
+    "predicted_family": "PortScan",
+    "primary": "T1046",
+    "acceptable": [
+      "T1046",
+      "T1595",
+      "T1595.001",
+      "T1595.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "888"
+    ]
+  },
+  {
+    "alert_id": 44267,
+    "label": "Infiltration - Portscan",
+    "predicted_family": "PortScan",
+    "primary": "T1046",
+    "acceptable": [
+      "T1046"
+    ],
+    "cves": [],
+    "key_facts": [
+      "192.168.10.8",
+      "192.168.10.51",
+      "2042"
+    ]
+  },
+  {
+    "alert_id": 73511,
+    "label": "DDoS",
+    "predicted_family": "DDoS",
+    "primary": "T1498.001",
+    "acceptable": [
+      "T1498",
+      "T1498.001",
+      "T1499",
+      "T1499.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 27112,
+    "label": "DoS Hulk",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 35883,
+    "label": "DoS GoldenEye",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 2465,
+    "label": "DoS Slowloris",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 2841,
+    "label": "DoS Slowhttptest",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 838,
+    "label": "FTP-Patator",
+    "predicted_family": "BruteForce",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "21"
+    ]
+  },
+  {
+    "alert_id": 1658,
+    "label": "SSH-Patator",
+    "predicted_family": "BruteForce",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "22"
+    ]
+  },
+  {
+    "alert_id": 36627,
+    "label": "Web Attack - Brute Force",
+    "predicted_family": "WebAttack",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 46104,
+    "label": "Botnet",
+    "predicted_family": "Bot",
+    "primary": "T1071.001",
+    "acceptable": [
+      "T1071",
+      "T1071.001",
+      "T1571"
+    ],
+    "cves": [],
+    "key_facts": [
+      "192.168.10.5",
+      "205.174.165.73",
+      "8080"
+    ]
+  },
+  {
+    "alert_id": 37431,
+    "label": "Infiltration",
+    "predicted_family": "Infiltration",
+    "primary": "T1204.002",
+    "acceptable": [
+      "T1071",
+      "T1071.001",
+      "T1105",
+      "T1204",
+      "T1204.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "192.168.10.8",
+      "205.174.165.73",
+      "444"
+    ]
+  },
+  {
+    "alert_id": 83973,
+    "label": "phishing",
+    "predicted_family": "Phishing/Spam",
+    "primary": "T1566.002",
+    "acceptable": [
+      "T1566",
+      "T1566.001",
+      "T1566.002",
+      "T1598",
+      "T1598.002",
+      "T1598.003"
+    ],
+    "cves": [],
+    "key_facts": []
+  },
+  {
+    "alert_id": 84042,
+    "label": "fraud",
+    "predicted_family": "Phishing/Spam",
+    "primary": "T1598.003",
+    "acceptable": [
+      "T1534",
+      "T1566",
+      "T1566.002",
+      "T1598",
+      "T1598.003"
+    ],
+    "cves": [],
+    "key_facts": []
+  },
+  {
+    "alert_id": 59229,
+    "label": "Portscan",
+    "predicted_family": "PortScan",
+    "primary": "T1046",
+    "acceptable": [
+      "T1046",
+      "T1595",
+      "T1595.001",
+      "T1595.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "8402"
+    ]
+  },
+  {
+    "alert_id": 44717,
+    "label": "Infiltration - Portscan",
+    "predicted_family": "PortScan",
+    "primary": "T1046",
+    "acceptable": [
+      "T1046"
+    ],
+    "cves": [],
+    "key_facts": [
+      "192.168.10.8",
+      "192.168.10.51",
+      "7911"
+    ]
+  },
+  {
+    "alert_id": 75315,
+    "label": "DDoS",
+    "predicted_family": "DDoS",
+    "primary": "T1498.001",
+    "acceptable": [
+      "T1498",
+      "T1498.001",
+      "T1499",
+      "T1499.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 31393,
+    "label": "DoS Hulk",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 35973,
+    "label": "DoS GoldenEye",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 2544,
+    "label": "DoS Slowloris",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 2932,
+    "label": "DoS Slowhttptest",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 858,
+    "label": "FTP-Patator",
+    "predicted_family": "BruteForce",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "21"
+    ]
+  },
+  {
+    "alert_id": 1660,
+    "label": "SSH-Patator",
+    "predicted_family": "BruteForce",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "22"
+    ]
+  },
+  {
+    "alert_id": 36628,
+    "label": "Web Attack - Brute Force",
+    "predicted_family": "WebAttack",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 46166,
+    "label": "Botnet",
+    "predicted_family": "Bot",
+    "primary": "T1071.001",
+    "acceptable": [
+      "T1071",
+      "T1071.001",
+      "T1571"
+    ],
+    "cves": [],
+    "key_facts": [
+      "192.168.10.8",
+      "205.174.165.73",
+      "8080"
+    ]
+  },
+  {
+    "alert_id": 83974,
+    "label": "phishing",
+    "predicted_family": "Phishing/Spam",
+    "primary": "T1566.002",
+    "acceptable": [
+      "T1566",
+      "T1566.001",
+      "T1566.002",
+      "T1598",
+      "T1598.002",
+      "T1598.003"
+    ],
+    "cves": [],
+    "key_facts": []
+  },
+  {
+    "alert_id": 84052,
+    "label": "fraud",
+    "predicted_family": "Phishing/Spam",
+    "primary": "T1598.003",
+    "acceptable": [
+      "T1534",
+      "T1566",
+      "T1566.002",
+      "T1598",
+      "T1598.003"
+    ],
+    "cves": [],
+    "key_facts": []
+  },
+  {
+    "alert_id": 60617,
+    "label": "Portscan",
+    "predicted_family": "PortScan",
+    "primary": "T1046",
+    "acceptable": [
+      "T1046",
+      "T1595",
+      "T1595.001",
+      "T1595.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "9877"
+    ]
+  },
+  {
+    "alert_id": 75492,
+    "label": "DDoS",
+    "predicted_family": "DDoS",
+    "primary": "T1498.001",
+    "acceptable": [
+      "T1498",
+      "T1498.001",
+      "T1499",
+      "T1499.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 33848,
+    "label": "DoS Hulk",
+    "predicted_family": "DoS",
+    "primary": "T1499.002",
+    "acceptable": [
+      "T1499",
+      "T1499.002",
+      "T1499.003"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 867,
+    "label": "FTP-Patator",
+    "predicted_family": "BruteForce",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "21"
+    ]
+  },
+  {
+    "alert_id": 1665,
+    "label": "SSH-Patator",
+    "predicted_family": "BruteForce",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "22"
+    ]
+  },
+  {
+    "alert_id": 46179,
+    "label": "Botnet",
+    "predicted_family": "Bot",
+    "primary": "T1071.001",
+    "acceptable": [
+      "T1071",
+      "T1071.001",
+      "T1571"
+    ],
+    "cves": [],
+    "key_facts": [
+      "192.168.10.8",
+      "205.174.165.73",
+      "8080"
+    ]
+  },
+  {
+    "alert_id": 83976,
+    "label": "phishing",
+    "predicted_family": "Phishing/Spam",
+    "primary": "T1566.002",
+    "acceptable": [
+      "T1566",
+      "T1566.001",
+      "T1566.002",
+      "T1598",
+      "T1598.002",
+      "T1598.003"
+    ],
+    "cves": [],
+    "key_facts": []
+  },
+  {
+    "alert_id": 62168,
+    "label": "Portscan",
+    "predicted_family": "PortScan",
+    "primary": "T1046",
+    "acceptable": [
+      "T1046",
+      "T1595",
+      "T1595.001",
+      "T1595.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "4224"
+    ]
+  },
+  {
+    "alert_id": 80584,
+    "label": "DDoS",
+    "predicted_family": "DDoS",
+    "primary": "T1498.001",
+    "acceptable": [
+      "T1498",
+      "T1498.001",
+      "T1499",
+      "T1499.002"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "80"
+    ]
+  },
+  {
+    "alert_id": 913,
+    "label": "FTP-Patator",
+    "predicted_family": "BruteForce",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "21"
+    ]
+  },
+  {
+    "alert_id": 1668,
+    "label": "SSH-Patator",
+    "predicted_family": "BruteForce",
+    "primary": "T1110.001",
+    "acceptable": [
+      "T1110",
+      "T1110.001"
+    ],
+    "cves": [],
+    "key_facts": [
+      "172.16.0.1",
+      "192.168.10.50",
+      "22"
+    ]
+  },
+  {
+    "alert_id": 46184,
+    "label": "Botnet",
+    "predicted_family": "Bot",
+    "primary": "T1071.001",
+    "acceptable": [
+      "T1071",
+      "T1071.001",
+      "T1571"
+    ],
+    "cves": [],
+    "key_facts": [
+      "192.168.10.8",
+      "205.174.165.73",
+      "8080"
+    ]
+  },
+  {
+    "alert_id": 83994,
+    "label": "phishing",
+    "predicted_family": "Phishing/Spam",
+    "primary": "T1566.002",
+    "acceptable": [
+      "T1566",
+      "T1566.001",
+      "T1566.002",
+      "T1598",
+      "T1598.002",
+      "T1598.003"
+    ],
+    "cves": [],
+    "key_facts": []
+  }
+]

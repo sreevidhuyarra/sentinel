@@ -42,6 +42,15 @@ def guard_section(g: dict[str, Any]) -> list[str]:
                 f"| {det} | {src} | {_pct(m['recall'])} | {_pct(m['fpr'])} | {m['n_pos']} / {m['n_neg']} |"
             )
     lines.append(f"\nScanning cost: {g['ms_per_document']:.0f} ms per document on CPU.")
+    prev = g.get("previous")
+    if prev:
+        p, n = prev["test"]["rules+classifier"]["all"], g["test"]["rules+classifier"]["all"]
+        lines.append(
+            f"\nSentence-pair scoring (added after the red team found an injection split over two "
+            f"sentences): threshold re-chosen on validation {prev['threshold']:.3f} -> "
+            f"{g['selection'][g['chosen']]['threshold']:.3f}; test recall {_pct(p['recall'])} -> "
+            f"{_pct(n['recall'])}, false alarms {_pct(p['fpr'])} -> {_pct(n['fpr'])}."
+        )
     return lines
 
 

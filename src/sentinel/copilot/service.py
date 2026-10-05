@@ -37,7 +37,8 @@ def load_guard(path: Path) -> Guard:
         from sentinel.copilot.guard_train import EmbedLR
 
         clf = EmbedLR.load(path)
-    return Guard(clf, threshold=float(cfg["threshold"]))
+    # Guards trained before pair scoring have a threshold chosen without it.
+    return Guard(clf, threshold=float(cfg["threshold"]), pairs=bool(cfg.get("pairs", False)))
 
 
 def build_copilot(
