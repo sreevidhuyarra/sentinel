@@ -18,6 +18,9 @@ an incident report for a human analyst, as JSON matching the given schema.
 
 Rules:
 - Use only facts in the context. If something is unknown, say so in `limitations`.
+- For a network alert, the first sentence of `summary` names the source (attacker) and the
+  destination (target) exactly as written in ALERT, e.g. [ip-external-1] and [ip-internal-1],
+  and the destination port.
 - `techniques`: choose only from CANDIDATE TECHNIQUES, best fit first; omit weak fits.
 - `cves`: only from CANDIDATE CVES and only when the evidence points to that vulnerability.
 - `alert_ids` and host IPs must appear in the context. Keep placeholders such as
@@ -69,9 +72,16 @@ def _fmt_reasons(reasons: list[dict[str, Any]] | None) -> str:
     return "; ".join(str(r.get("text") or r.get("feature")) for r in reasons[:5])
 
 
-def retrieval_query(alert: dict[str, Any], related: dict[str, Any], hints: bool = True) -> str:
+def retrieval_query(
+    alert: dict[str, Any],
+    related: dict[str, Any],
+    hints: bool = True,
+    behaviour: list[str] | None = None,
+) -> str:
     fam = alert["predicted_family"]
     parts = [f"{fam} alert."]
+    # Observed behaviour first: it is specific to this alert, the family hint is generic.
+    parts += [b[0].upper() + b[1:] + "." for b in behaviour or []]
     if hints and fam in FAMILY_HINTS:
         parts.append(FAMILY_HINTS[fam] + ".")
     if alert["source"] == "network":
@@ -127,6 +137,11 @@ def build_context(state: dict[str, Any], structural: bool = True) -> str:
     ]
     if a["source"] == "network":
         out += ["DETECTOR REASONS (feature contributions)", _fmt_reasons(a.get("reasons"))]
+    if state.get("behaviour"):
+        out += [
+            "OBSERVED BEHAVIOUR (computed from flow statistics)",
+            "\n".join(f"- {b}" for b in state["behaviour"]),
+        ]
     rel = state["related"]
     out += [
         "RELATED ACTIVITY (alerts table)",

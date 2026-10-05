@@ -26,6 +26,19 @@ log = get_logger(__name__)
 
 NO_DATE = datetime(2000, 1, 1)
 META = ["ts", "src_ip", "dst_ip", "src_port", "dst_port", "protocol", "label", "family"]
+# Raw flow statistics kept with each alert, so the copilot can describe behaviour in words.
+FEATURES = [
+    "flow_duration",
+    "total_fwd_packet",
+    "total_bwd_packets",
+    "total_length_of_fwd_packet",
+    "total_length_of_bwd_packet",
+    "flow_packets_s",
+    "syn_flag_count",
+    "rst_flag_count",
+    "fin_flag_count",
+    "psh_flag_count",
+]
 
 
 def _batches(df: pl.DataFrame, size: int) -> Iterator[pl.DataFrame]:
@@ -75,8 +88,9 @@ def load_network(
     for part in _batches(flows.sort("ts"), batch_size):
         results = detector.predict(part, explain=True)
         meta = part.select(META).to_dicts()
+        feats = part.select([c for c in FEATURES if c in part.columns]).to_dicts()
         rows, truth = [], []
-        for m, r in zip(meta, results, strict=True):
+        for m, f, r in zip(meta, feats, results, strict=True):
             if not r["is_attack"]:
                 continue
             rows.append(
@@ -103,6 +117,7 @@ def load_network(
                         for x in r["reasons"]
                     ],
                     "evidence": None,
+                    "features": {k: None if v is None else float(v) for k, v in f.items()},
                     "model_version": model_version,
                 }
             )

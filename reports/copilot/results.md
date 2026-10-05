@@ -34,12 +34,15 @@ Scanning cost: 867 ms per document on CPU.
 
 | Retriever | R@1 | R@3 | R@5 | R@8 | MRR | ms/query |
 |---|---|---|---|---|---|---|
-| bm25 | 50.9% | 78.7% | 79.6% | 80.6% | 0.644 | 26 |
-| dense | 60.2% | 80.6% | 84.3% | 84.3% | 0.683 | 67 |
-| hybrid | 71.3% | 85.2% | 85.2% | 85.2% | 0.781 | 101 |
-| hybrid+rerank | 81.5% | 81.5% | 81.5% | 90.7% | 0.827 | 1272 |
-| hybrid+rerank, no family hints | 17.6% | 38.0% | 64.8% | 67.6% | 0.319 | 1130 |
-| hybrid, no family hints | 20.4% | 33.3% | 58.3% | 65.7% | 0.311 | 81 |
+| bm25 | 50.9% | 78.7% | 79.6% | 80.6% | 0.644 | 19 |
+| dense | 60.2% | 80.6% | 84.3% | 84.3% | 0.683 | 45 |
+| hybrid | 71.3% | 85.2% | 85.2% | 85.2% | 0.781 | 79 |
+| hybrid+rerank | 81.5% | 81.5% | 81.5% | 90.7% | 0.827 | 770 |
+| hybrid+rerank, no family hints | 17.6% | 38.0% | 64.8% | 67.6% | 0.319 | 785 |
+| hybrid, no family hints | 20.4% | 33.3% | 58.3% | 65.7% | 0.311 | 75 |
+| hybrid+rerank + behaviour | 34.3% | 75.0% | 84.3% | 85.2% | 0.525 | 815 |
+| hybrid+rerank, behaviour, no family hints | 38.0% | 66.7% | 82.4% | 83.3% | 0.533 | 840 |
+| deployed: hybrid+rerank, behaviour candidates merged | 81.5% | 81.5% | 81.5% | 90.7% | 0.827 | 828 |
 
 Recall@3 by label (hybrid + re-rank):
 
@@ -66,34 +69,36 @@ Recall@3 by label (hybrid + re-rank):
 
 ## Incident reports (LLM)
 
-108 reports; generator ollama, providers used {'ollama': 108}; judge ollama:llama3.2:3b.
+108 reports; generator gemini, providers used {'gemini': 108}; judge gemini:gemini-3.1-flash-lite.
 
 | Metric | Value | Target (design) |
 |---|---|---|
-| Technique precision@1 | 81.5% | >= 70% |
-| Technique hit@3 | 82.4% | |
+| Technique precision@1 | 78.7% | >= 70% |
+| Technique hit@3 | 87.0% | |
 | Acceptable technique among candidates | 90.7% | |
 | CVE recall (alerts with a known CVE) | 0.0% | |
-| Key facts mentioned (IPs, port) | 50.7% | |
+| Key facts in the prose (IPs, port) | 97.9% | |
+| Facts block complete (attacker, target; built by code) | 100.0% | |
+| Reports still inventing an IP after verify | 0.0% | 0% |
 | Passed verification on the first draft | 100.0% | |
 | Citation validity (after verify) | 100.0% | 100% |
 | Invalid citations dropped per report | 0.00 | |
-| Faithfulness (judge: supported claims) | 82.6% | |
-| Tokens in / out per report | 1,838 / 451 | |
-| LLM seconds per report | 64.3 | |
+| Faithfulness (judge: supported claims) | 92.4% | |
+| Tokens in / out per report | 2,148 / 766 | |
+| LLM seconds per report | 2.9 | |
 
 | Label | P@1 |
 |---|---|
-| Botnet | 0.0% |
-| Botnet - Attempted | 0.0% |
+| Botnet | 100.0% |
+| Botnet - Attempted | 100.0% |
 | DDoS | 100.0% |
-| DoS GoldenEye | 100.0% |
-| DoS Hulk | 100.0% |
-| DoS Slowhttptest | 100.0% |
+| DoS GoldenEye | 50.0% |
+| DoS Hulk | 28.6% |
+| DoS Slowhttptest | 83.3% |
 | DoS Slowloris | 100.0% |
 | FTP-Patator | 100.0% |
 | Heartbleed | 0.0% |
-| Infiltration | 80.0% |
+| Infiltration | 0.0% |
 | Infiltration - Portscan | 100.0% |
 | Portscan | 100.0% |
 | SSH-Patator | 100.0% |

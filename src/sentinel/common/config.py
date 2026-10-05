@@ -156,7 +156,7 @@ class CopilotLLMParams(BaseModel):
     gemini_rpm: int = Field(8, ge=1)
     gemini_rpd: int = Field(200, ge=1)
     # Evaluation judge: a different model from the generator (report section 8.3).
-    judge_model: str = "gemini-3.8-flash"
+    judge_model: str = "gemini-3.1-flash-lite"
     judge_rpm: int = Field(5, ge=1)
     judge_rpd: int = Field(100, ge=1)
     cache_path: Path = Path("data/cache/llm.sqlite")
@@ -205,12 +205,41 @@ class SeverityParams(BaseModel):
     url_malicious: float = Field(0.9, gt=0, le=1)
 
 
+class BehaviourParams(BaseModel):
+    """Thresholds for behaviour descriptions; tuned on the development alert set only."""
+
+    enabled: bool = True
+    # Candidates added from a behaviour-only query (of copilot.n_techniques in total).
+    extra_candidates: int = Field(0, ge=0)
+    scan_ports: int = Field(20, ge=2)  # distinct ports from one source in the window
+    sweep_hosts: int = Field(10, ge=2)  # distinct hosts from one source
+    repeat_min: int = Field(20, ge=2)  # pair connections for "repeated" (login services)
+    web_repeat_min: int = Field(10, ge=2)  # same, for web requests
+    alike_cv: float = Field(0.5, gt=0)  # coefficient of variation of request sizes
+    flood_alerts: int = Field(500, ge=10)  # alerts to one target in the window
+    flood_sources: int = Field(5, ge=2)  # sources for "distributed"
+    slow_seconds: float = Field(30.0, gt=0)  # mean connection duration
+    slow_pps: float = Field(5.0, gt=0)  # packets per second
+    slow_bwd_bytes: float = Field(1_000, ge=0)  # the server barely answers
+    beacon_min: int = Field(5, ge=3)
+    beacon_min_interval_s: float = Field(5.0, gt=0)
+    beacon_cv: float = Field(0.5, gt=0)  # regularity of the intervals
+    leak_bytes: float = Field(10_000, gt=0)
+    leak_ratio: float = Field(10.0, gt=1)
+    few_requests: int = Field(10, ge=1)
+    large_request: float = Field(1_000, gt=0)
+
+
 class CopilotParams(BaseModel):
+    behaviour: BehaviourParams = BehaviourParams()
     llm: CopilotLLMParams = CopilotLLMParams()
     guard: GuardParams = GuardParams()
     severity: SeverityParams = SeverityParams()
     assets: list[AssetParams] = Field(default_factory=list)
     related_window_minutes: int = Field(30, ge=1)
+    # Development alert set (validation split) for tuning the copilot without touching test.
+    dev_database: str = "sentinel_dev"
+    dev_email_sample: dict[str, int] = Field(default_factory=lambda: {"phishing": 60, "fraud": 60})
     n_techniques: int = Field(8, ge=1)  # retrieved candidates the LLM may choose from
     n_cves: int = Field(3, ge=0)
     # Cross-encoder score a CVE needs to be offered at all. Flow records carry no product

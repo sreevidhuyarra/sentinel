@@ -34,3 +34,4 @@ Thumbs.db
 # Frontend (week 6)
 node_modules/
 dist/
+reports/copilot/*.log

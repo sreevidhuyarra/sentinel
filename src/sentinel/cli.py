@@ -244,24 +244,37 @@ app.add_typer(alerts_app, name="alerts")
 @alerts_app.command("load")
 def alerts_load(
     source: str = typer.Option("all", help="network, email or all"),
+    split: str = typer.Option("test", help="test (the alert DB) or val (the dev set)"),
+    database: str | None = typer.Option(
+        None, help="Postgres database (default: from .env for test, copilot.dev_database for val)"
+    ),
     params_file: Path | None = None,
 ) -> None:
-    """Score the test splits with the deployed detectors and (re)fill the alerts table."""
+    """Score a split with the deployed detectors and (re)fill that database's alerts table.
+
+    The validation split goes to a separate database, so tuning the copilot on it never
+    changes the related activity seen by test alerts (the splits interleave in time).
+    """
     import polars as pl
 
     from sentinel.common.config import get_settings
     from sentinel.db import load
-    from sentinel.db.schema import init_db, make_engine
+    from sentinel.db.schema import ensure_database, init_db, make_engine, with_database
     from sentinel.services.api import load_production_models
 
+    if split not in ("test", "val"):
+        raise typer.BadParameter("split must be test or val")
     p, s = load_params(params_file), get_settings()
-    engine = make_engine(s.postgres_url)
+    db = database or (p.copilot.dev_database if split == "val" else None)
+    url = with_database(s.postgres_url, db)
+    ensure_database(url)
+    engine = make_engine(url)
     init_db(engine, s.postgres_ro_password)
     m = load_production_models()
     if source in ("network", "all"):
         load.clear(engine, "network")
         flows = pl.read_parquet(p.resolve(p.data.processed_dir) / "flows.parquet").filter(
-            pl.col("split") == "test"
+            pl.col("split") == split
         )
         typer.echo(f"network alerts: {load.load_network(engine, m.detector, flows, m.ids_source)}")
     if source in ("email", "all"):
@@ -269,14 +282,14 @@ def alerts_load(
             raise typer.BadParameter("phishing model not available")
         load.clear(engine, "email")
         emails = pl.read_parquet(p.resolve(p.phishing.processed_dir) / "emails.parquet").filter(
-            pl.col("split") == "test"
+            pl.col("split") == split
         )
         n = load.load_email(
             engine,
             m.phishing,
             m.url,
             emails,
-            p.copilot.email_sample,
+            p.copilot.email_sample if split == "test" else p.copilot.dev_email_sample,
             p.seed,
             m.phishing_source or "local",
         )
@@ -344,6 +357,10 @@ def copilot_evaluate(
         None, help="judge providers (default: gemini judge model)"
     ),
     fresh: bool = typer.Option(False, help="discard the resume checkpoint and start over"),
+    dev: bool = typer.Option(False, help="development alert set (tuning) -> reports/copilot/dev"),
+    baseline: bool = typer.Option(
+        False, help="pipeline before the improvement pass, for comparison"
+    ),
     params_file: Path | None = None,
 ) -> None:
     """Gold-set evaluation: retrieval, technique mapping, faithfulness, cost (reports/copilot).
@@ -360,6 +377,8 @@ def copilot_evaluate(
         _providers(provider),
         _providers(judge_provider),
         fresh,
+        dev,
+        baseline,
     )
     typer.echo(json.dumps(out.get("reports", {}), indent=2, default=str))
 

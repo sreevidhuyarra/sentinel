@@ -60,7 +60,7 @@ class ScriptedLLM:
 def _draft(technique: str, alert_ids: list[int], host: str) -> dict[str, Any]:
     return {
         "title": "SSH brute force against the web server",
-        "summary": "Many failed logins from one source.",
+        "summary": "Many failed logins from 172.16.0.1 against 192.168.10.50.",
         "timeline": [
             {"time": "2017-07-04 13:00:00", "event": "first attempt", "alert_ids": alert_ids}
         ],
@@ -212,7 +212,10 @@ def test_verify_retries_then_drops_invalid_citations(
     llm = ScriptedLLM([bad, bad])
     rep, trace = _copilot(db, retriever, llm).investigate(first)
     assert [t["node"] for t in trace].count("draft_report") == 2  # one retry
-    assert "REJECTED" in llm.prompts[1][1]
+    retry_prompt = llm.prompts[1][1]
+    assert "REJECTED" in retry_prompt
+    # The error quotes the hallucinated host; it must be redacted like the rest of the prompt.
+    assert "10.9.9.9" not in retry_prompt and "192.168.10.50" not in retry_prompt
     assert not rep.verification["passed"] and rep.verification["dropped_citations"] == ["T9999"]
     assert all(c.id != "T9999" for c in rep.citations)
 
@@ -263,3 +266,39 @@ def test_api_alerts_investigate_and_reports(db: dict[str, Any], retriever: Retri
         assert again["report_id"] == body["report_id"] and again["severity"]["level"] == "High"
         assert c.get("/reports/nope").status_code == 404
         assert c.post("/copilot/investigate/999999").status_code == 404
+
+
+def test_verify_requires_attacker_and_target_and_rejects_invented_ips(
+    db: dict[str, Any], retriever: Retriever
+) -> None:
+    first = db["ids"][0]
+    vague = _draft("T1110.001", [first], "192.168.10.50")
+    vague["summary"] = "Brute force seen; 10.66.66.66 may also be involved."
+    good = _draft("T1110.001", [first], "192.168.10.50")
+    llm = ScriptedLLM([vague, good])
+    rep, _ = _copilot(db, retriever, llm).investigate(first)
+    retry = llm.prompts[1][1]
+    assert "summary must name the attacker" in retry and "is not in the context" in retry
+    assert rep.verification["passed"] and rep.verification["attempts"] == 2
+    # The facts block comes from the database, whatever the LLM wrote.
+    assert rep.facts["attacker"] == "172.16.0.1" and rep.facts["target"] == "192.168.10.50"
+    assert rep.facts["target_asset"] == "web server" and rep.facts["service"] == "22/SSH"
+
+
+def test_judge_prompt_is_redacted_and_quota_stops_the_run(
+    db: dict[str, Any], retriever: Retriever
+) -> None:
+    from sentinel.copilot.evaluate import judge_faithfulness
+    from sentinel.llm.base import QuotaError
+
+    first = db["ids"][0]
+    rep, _ = _copilot(
+        db, retriever, ScriptedLLM([_draft("T1110.001", [first], "192.168.10.50")])
+    ).investigate(first)
+    judge = ScriptedLLM([{"claims": [{"claim": "SSH brute force", "supported": True}]}])
+    out = judge_faithfulness(judge, "ALERT 172.16.0.1 -> 192.168.10.50:22", rep)
+    assert out is not None and out["faithfulness"] == 1.0
+    sent = judge.prompts[0][1]
+    assert "192.168.10.50" not in sent and "172.16.0.1" not in sent and "[ip-internal-1]" in sent
+    with pytest.raises(QuotaError):
+        judge_faithfulness(ScriptedLLM([QuotaError("day", daily=True)]), "ctx", rep)

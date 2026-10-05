@@ -110,3 +110,82 @@ def test_redactor_round_trip_is_stable() -> None:
     assert r.restore(red) == text
     assert r.restore({"hosts": ["[ip-internal-1]"], "n": 3}) == {"hosts": ["192.168.10.50"], "n": 3}
     assert r.redact("port 8080, duration 5000000") == "port 8080, duration 5000000"
+
+
+def test_gemini_retries_transient_errors_but_not_quota() -> None:
+    import httpx
+
+    from sentinel.llm.gemini import GeminiProvider
+
+    ok = {"candidates": [{"content": {"parts": [{"text": '{"ok": true}'}]}}], "usageMetadata": {}}
+    for statuses, expect in (([503, 503, 200], "ok"), ([429], "quota"), ([503] * 3, "error")):
+        seen = list(statuses)
+
+        def handler(_req: httpx.Request, seen: list[int] = seen) -> httpx.Response:
+            code = seen.pop(0)
+            return httpx.Response(code, json=ok if code == 200 else {"error": code})
+
+        g = GeminiProvider("k", "m", retries=2, backoff=0.0)
+        g._client = httpx.Client(transport=httpx.MockTransport(handler))
+        if expect == "ok":
+            assert g.generate("s", "p").json() == {"ok": True} and not seen
+        elif expect == "quota":
+            with pytest.raises(QuotaError):
+                g.generate("s", "p")
+        else:
+            with pytest.raises(LLMError, match="503"):
+                g.generate("s", "p")
+
+
+def _quota_response(quota_id: str, retry: str | None) -> dict[str, Any]:
+    details: list[dict[str, Any]] = [
+        {
+            "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+            "violations": [{"quotaId": quota_id}],
+        }
+    ]
+    if retry is not None:
+        details.append({"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": retry})
+    return {
+        "error": {"code": 429, "message": "You exceeded your current quota", "details": details}
+    }
+
+
+def test_gemini_waits_out_per_minute_quota_and_flags_daily(tmp_path: Path) -> None:
+    import httpx
+
+    from sentinel.llm.gemini import GeminiProvider
+
+    ok = {"candidates": [{"content": {"parts": [{"text": '{"ok": true}'}]}}], "usageMetadata": {}}
+    minute = _quota_response("GenerateRequestsPerMinutePerProjectPerModel-FreeTier", "0s")
+    day = _quota_response("GenerateRequestsPerDayPerProjectPerModel-FreeTier", "3600s")
+
+    def client(responses: list[tuple[int, dict[str, Any]]]) -> httpx.Client:
+        def handler(_req: httpx.Request) -> httpx.Response:
+            code, body = responses.pop(0)
+            return httpx.Response(code, json=body)
+
+        return httpx.Client(transport=httpx.MockTransport(handler))
+
+    g = GeminiProvider("k", "m", retries=2, backoff=0.0)
+    g._client = client([(429, minute), (200, ok)])
+    assert g.generate("s", "p").json() == {"ok": True}  # waited, retried, answered
+
+    g._client = client([(429, day)])
+    with pytest.raises(QuotaError) as daily:
+        g.generate("s", "p")
+    assert daily.value.daily and "PerDay" in str(daily.value)
+
+    # The throttle writes off the day only for a daily quota.
+    for exc, spent in ((QuotaError("minute"), False), (QuotaError("day", daily=True), True)):
+        t = ThrottledProvider(Echo(fail=exc), tmp_path / f"q{spent}.sqlite", rpm=50, rpd=10)
+        with pytest.raises(QuotaError):
+            t.generate("s", "p")
+        assert (t.remaining_today() <= 0) is spent
+
+
+def test_redactor_catches_ips_at_sentence_end_but_not_longer_numbers() -> None:
+    r = Redactor()
+    red = r.redact("Traffic from 172.16.0.1 hit 192.168.10.50. Version 1.2.3.4.5 is unrelated.")
+    assert "172.16.0.1" not in red and "192.168.10.50" not in red
+    assert "[ip-internal-2]." in red and "1.2.3.4.5" in red

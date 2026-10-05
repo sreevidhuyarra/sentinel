@@ -20,10 +20,19 @@ from pydantic import ValidationError
 from sentinel.common.config import CopilotParams
 from sentinel.common.logging import get_logger
 from sentinel.copilot import prompts
+from sentinel.copilot.behaviour import describe
 from sentinel.copilot.guard import Guard
-from sentinel.copilot.models import Citation, Draft, IncidentReport, TechniqueRef, draft_schema
+from sentinel.copilot.models import (
+    IP_RE,
+    Citation,
+    Draft,
+    IncidentReport,
+    TechniqueRef,
+    draft_schema,
+    report_prose,
+)
 from sentinel.copilot.rag import Hit, Retriever
-from sentinel.copilot.severity import assess
+from sentinel.copilot.severity import assess, find_asset
 from sentinel.copilot.tools import AlertTools
 from sentinel.llm.base import LLMError, LLMProvider
 from sentinel.llm.redact import Redactor
@@ -38,6 +47,7 @@ class State(TypedDict, total=False):
     untrusted: dict[str, str]  # block id -> guarded text
     guard: list[dict[str, Any]]
     related: dict[str, Any]
+    behaviour: list[str]  # plain-language descriptions computed from flow statistics
     query: str
     techniques: list[Hit]
     cves: list[Hit]
@@ -57,6 +67,37 @@ class AlertNotFoundError(LookupError):
     pass
 
 
+def retrieve_techniques(
+    retriever: Retriever,
+    alert: dict[str, Any],
+    related: dict[str, Any],
+    behaviour: list[str],
+    n: int,
+    extra: int,
+    hints: bool = True,
+) -> list[Hit]:
+    """Candidates: the family-hint query's ranking, plus up to `extra` new candidates from a
+    behaviour-only query.
+
+    Mixing the behaviour sentences into the main query hurt retrieval on the development
+    set (they swamp the query), but on their own they find what the family hint misses,
+    e.g. beaconing C2 for Botnet. Merging the candidate lists keeps the first ranks intact.
+    """
+    k_main = max(1, n - extra) if behaviour and extra else n
+    main = retriever.search(
+        prompts.retrieval_query(alert, related, hints), kind="technique", k=k_main
+    )
+    if not behaviour or not extra:
+        return main
+    seen = {h.id for h in main}
+    by_behaviour = retriever.search(
+        prompts.retrieval_query(alert, related, hints=False, behaviour=behaviour),
+        kind="technique",
+        k=n,
+    )
+    return main + [h for h in by_behaviour if h.id not in seen][:extra]
+
+
 @dataclass
 class Copilot:
     tools: AlertTools
@@ -66,6 +107,8 @@ class Copilot:
     cfg: CopilotParams
     use_guard: bool = True  # False only for the red-team baseline
     use_hints: bool = True
+    use_behaviour: bool = True
+    check_facts: bool = True  # verify: summary names attacker/target, no invented IPs
     structural: bool = True  # delimiters + untrusted-data policy (False: red-team baseline)
 
     # -- nodes ------------------------------------------------------------------------------
@@ -100,17 +143,39 @@ class Copilot:
 
     def gather_context(self, s: State) -> State:
         related = self.tools.related_alerts(s["alert"], self.cfg.related_window_minutes)
-        return {"related": related}
+        behaviour: list[str] = []
+        if self.use_behaviour and self.cfg.behaviour.enabled:
+            act = self.tools.activity(s["alert"], self.cfg.related_window_minutes)
+            behaviour = describe(s["alert"], act, self.cfg.behaviour)
+        return {"related": related, "behaviour": behaviour}
 
     def map_attack(self, s: State) -> State:
         query = prompts.retrieval_query(s["alert"], s["related"], self.use_hints)
-        tech = self.retriever.search(query, kind="technique", k=self.cfg.n_techniques)
-        cves = (
-            self.retriever.search(query, kind="cve", k=self.cfg.n_cves) if self.cfg.n_cves else []
+        tech = retrieve_techniques(
+            self.retriever,
+            s["alert"],
+            s["related"],
+            s.get("behaviour", []),
+            self.cfg.n_techniques,
+            self.cfg.behaviour.extra_candidates,
+            self.use_hints,
         )
-        # Offer a CVE only on strong evidence; a weak candidate invites a made-up link.
-        if self.retriever._rerank is not None:
-            cves = [h for h in cves if h.score >= self.cfg.cve_min_score]
+        cves: list[Hit] = []
+        if self.cfg.n_cves:
+            queries = [query]
+            if s.get("behaviour"):  # e.g. "a TLS service returned 7.8 MB for 8 KB requested"
+                queries.append(
+                    prompts.retrieval_query(s["alert"], s["related"], False, s["behaviour"])
+                )
+            best: dict[str, Hit] = {}
+            for q in queries:
+                for h in self.retriever.search(q, kind="cve", k=self.cfg.n_cves):
+                    if h.id not in best or h.score > best[h.id].score:
+                        best[h.id] = h
+            cves = sorted(best.values(), key=lambda h: -h.score)[: self.cfg.n_cves]
+            # Offer a CVE only on strong evidence; a weak candidate invites a made-up link.
+            if self.retriever._rerank is not None:
+                cves = [h for h in cves if h.score >= self.cfg.cve_min_score]
         return {"query": query, "techniques": tech, "cves": cves}
 
     def assess_severity(self, s: State) -> State:
@@ -137,15 +202,16 @@ class Copilot:
                 "errors": ["no LLM provider"],
                 "provider": "template",
             }
-        redactor = Redactor()
-        context = redactor.redact(prompts.build_context(dict(s), self.structural))
-        prompt = context
+        prompt = prompts.build_context(dict(s), self.structural)
         if s.get("errors"):
             prompt += (
                 "\n\nYOUR PREVIOUS ANSWER WAS REJECTED:\n- "
                 + "\n- ".join(s["errors"])
                 + "\nReturn a corrected report."
             )
+        # Redact the whole prompt, verification errors included: they quote hosts and IDs.
+        redactor = Redactor()
+        prompt = redactor.redact(prompt)
         schema = draft_schema([h.id for h in s["techniques"]], [h.id for h in s["cves"]])
         try:
             system = prompts.SYSTEM if self.structural else prompts.SYSTEM_NAIVE
@@ -215,6 +281,22 @@ class Copilot:
             errors += [
                 f"host {h.ip} is not in the context" for h in d.affected_hosts if h.ip not in ips
             ]
+        if s["alert"]["source"] == "network" and self.check_facts:
+            # Any IP written in the prose must come from the context (no invented hosts).
+            prose = report_prose(d)
+            errors += [
+                f"IP {ip} in the text is not in the context"
+                for ip in sorted(set(IP_RE.findall(prose)) - ips)
+            ]
+            # The analyst needs who attacked whom in the first lines.
+            a = s["alert"]
+            missing = [
+                f"{role} {ip}"
+                for role, ip in (("attacker", a.get("src_ip")), ("target", a.get("dst_ip")))
+                if ip and ip not in d.summary
+            ]
+            if missing:
+                errors.append("summary must name the " + " and the ".join(missing))
         if not d.techniques and tech:
             errors.append("no technique chosen; pick the best-fitting candidate")
         return {"errors": errors}
@@ -267,8 +349,55 @@ class Copilot:
                 "techniques": [h.id for h in s["techniques"]],
                 "cves": [h.id for h in s["cves"]],
             },
+            facts=self.facts(s),
         )
         return {"report": report}
+
+    def facts(self, s: State) -> dict[str, Any]:
+        """Who / what / when, straight from the database: never depends on the LLM."""
+        a, rel, sev = s["alert"], s["related"], s["severity"]
+        out: dict[str, Any] = {
+            "alert_id": a["id"],
+            "detected": a["predicted_family"],
+            "detector": a.get("detector"),
+            "confidence": a.get("confidence"),
+            "time": a["ts"],
+            "related_alerts": rel.get("count", 0),
+            "related_families": rel.get("families", {}),
+            "first_seen": rel.get("first") or a["ts"],
+            "last_seen": rel.get("last") or a["ts"],
+        }
+        if a["source"] == "network":
+            target = find_asset(a.get("dst_ip"), self.cfg.assets)
+            source = find_asset(a.get("src_ip"), self.cfg.assets)
+            port = a.get("dst_port")
+            out.update(
+                attacker=a.get("src_ip"),
+                attacker_asset=source.name if source else None,
+                target=a.get("dst_ip"),
+                target_asset=target.name if target else None,
+                target_criticality=target.criticality if target else None,
+                service=(
+                    f"{port}/{prompts.SERVICES[int(port)]}"
+                    if port is not None and int(port) in prompts.SERVICES
+                    else port
+                ),
+                protocol=a.get("protocol"),
+                behaviour=s.get("behaviour", []),
+            )
+        else:
+            urls = (a.get("evidence") or {}).get("urls") or []
+            out.update(
+                sender_domain=a.get("sender_domain"),
+                links=len(urls),
+                malicious_links=sum(
+                    (u.get("malicious_probability") or 0) >= self.cfg.severity.url_malicious
+                    for u in urls
+                ),
+                injection_detected=any(g["flagged_segments"] for g in s.get("guard", [])),
+            )
+        out["severity"] = sev["level"]
+        return out
 
     def template(self, s: State) -> Draft:
         """Deterministic report when no LLM is available: facts only, no prose model."""

@@ -169,15 +169,24 @@ copilot:
     gemini_rpm: 8
     gemini_rpd: 200
     # Evaluation judge: a different model from the generator.
-    judge_model: gemini-3.8-flash
+    # Flash models allow only ~10 free requests/day on this key; Flash-Lite has room.
+    judge_model: gemini-3.1-flash-lite
     judge_rpm: 5
-    judge_rpd: 100
+    judge_rpd: 150
     cache_path: data/cache/llm.sqlite
   # Emails scored per kind when filling the alerts table; the flagged ones become alerts.
   email_sample: {phishing: 309, fraud: 300, spam: 300, legitimate: 300}
   related_window_minutes: 30
+  # Development alert set (validation split, own database): tune here, never on test.
+  dev_database: sentinel_dev
+  dev_email_sample: {phishing: 60, fraud: 60}
   n_techniques: 8   # retrieved ATT&CK candidates the LLM may choose from
   n_cves: 3
+  behaviour:
+    # Behaviour sentences go to the LLM and the facts block. Retrieval candidates from a
+    # behaviour-only query did not help on the dev set (R@8 92.4% -> 89.5% with 3; mixing
+    # them into the main query: R@1 84.8% -> 35.2%), so none are added.
+    extra_candidates: 0
   # Re-ranker score a CVE needs to be offered (flow data rarely names a product).
   cve_min_score: 1.0
   guard:

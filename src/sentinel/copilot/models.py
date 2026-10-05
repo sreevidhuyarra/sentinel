@@ -9,6 +9,7 @@ LLM cannot influence (severity, citation links, guard findings, provider, timing
 from __future__ import annotations
 
 import copy
+import re
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -90,3 +91,15 @@ class IncidentReport(BaseModel):
     model: str | None
     usage: dict[str, Any]  # tokens, seconds, cache hits
     candidates: dict[str, list[str]]  # retrieved technique / CVE IDs offered to the LLM
+    facts: dict[str, Any] = Field(default_factory=dict)  # who / what / when from the database
+
+
+IP_RE = re.compile(r"(?<!\d)(?<!\d\.)(?:\d{1,3}\.){3}\d{1,3}(?!\d)(?!\.\d)")
+
+
+def report_prose(d: Draft) -> str:
+    """Everything the LLM wrote, as one text (for fact and faithfulness checks)."""
+    parts = [d.title, d.summary, d.severity_rationale, d.injection_notes, d.limitations]
+    parts += [e.event for e in d.timeline] + [h.ip + " " + h.role for h in d.affected_hosts]
+    parts += [t.rationale for t in d.techniques] + list(d.recommended_actions)
+    return "\n".join(parts)

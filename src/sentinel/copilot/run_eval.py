@@ -15,7 +15,7 @@ from sentinel.copilot import evaluate, redteam
 from sentinel.copilot.gold import build_gold_set
 from sentinel.copilot.report import write_markdown
 from sentinel.copilot.service import build_copilot
-from sentinel.db.schema import alert_truth, alerts, make_engine
+from sentinel.db.schema import alert_truth, alerts, make_engine, with_database
 from sentinel.llm.factory import build_judge, build_provider
 
 log = get_logger(__name__)
@@ -44,8 +44,13 @@ def _log_mlflow(name: str, metrics: dict[str, Any], params: dict[str, Any]) -> N
         mlflow.set_experiment("sentinel-copilot")
         with mlflow.start_run(run_name=name):
             mlflow.log_params(params)
+            # MLflow metric names allow [A-Za-z0-9_.-/ ]: "technique_p@1" -> "technique_p_at_1".
             mlflow.log_metrics(
-                {k: float(v) for k, v in metrics.items() if isinstance(v, int | float)}
+                {
+                    k.replace("@", "_at_"): float(v)
+                    for k, v in metrics.items()
+                    if isinstance(v, int | float) and not isinstance(v, bool)
+                }
             )
     except Exception as exc:  # MLflow down: results are on disk anyway
         log.warning("MLflow logging skipped: %s", exc)
@@ -59,16 +64,32 @@ def run(
     provider: list[str] | None = None,
     judge_provider: list[str] | None = None,
     fresh: bool = False,
+    dev: bool = False,
+    baseline: bool = False,
 ) -> dict[str, Any]:
-    out_dir = params.resolve(REPORTS)
+    """Gold-set evaluation. With `dev`, on the development alert set (validation split, its
+    own database) and into reports/copilot/dev/: tune there, report the test set once."""
+    settings = get_settings()
+    database = params.copilot.dev_database if dev else None
+    # `baseline`: the pipeline before the improvement pass (no behaviour context, no fact
+    # checks), for a like-for-like comparison on the same alerts.
+    name = ("dev" if dev else "") + ("_baseline" if baseline else "")
+    out_dir = params.resolve(REPORTS / name.lstrip("_") if name else REPORTS)
     out_dir.mkdir(parents=True, exist_ok=True)
-    admin = make_engine(get_settings().postgres_url)  # reads labels; the copilot cannot
+    # Reads labels; the copilot cannot.
+    admin = make_engine(with_database(settings.postgres_url, database))
     gold = _round_robin(build_gold_set(admin, params.seed))
     (out_dir / "gold_set.json").write_text(evaluate.dump(gold))
     log.info("gold set: %d alerts, %d labels", len(gold), len({g["label"] for g in gold}))
 
     llm = build_provider(params, order=provider) if provider else "config"
-    copilot = build_copilot(params, llm=llm if reports else None)
+    copilot = build_copilot(
+        params,
+        llm=llm if reports else None,
+        db_url=with_database(settings.postgres_ro_url, database),
+        use_behaviour=not baseline,
+        check_facts=not baseline,
+    )
     results: dict[str, Any] = {"gold_alerts": len(gold)}
     results["retrieval"] = evaluate.evaluate_retrieval(copilot, gold)
 

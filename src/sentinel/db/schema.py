@@ -21,6 +21,7 @@ from sqlalchemy import (
     Text,
     create_engine,
     event,
+    make_url,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -49,6 +50,7 @@ alerts = Table(
     Column("severity", String(16)),
     Column("reasons", JSONType),  # SHAP / anomaly / sentence reasons from the detector
     Column("evidence", JSONType),  # untrusted text (email subject/body, URLs, log lines)
+    Column("features", JSONType),  # a few raw flow statistics (behaviour descriptions)
     Column("model_version", String(255)),
     Column("status", String(16), nullable=False, server_default="new"),
     Index("alerts_src_ts", "src_ip", "ts"),
@@ -94,7 +96,12 @@ def make_engine(url: str) -> Engine:
 def init_db(engine: Engine, ro_password: str | None = None) -> None:
     """Create the tables; on Postgres also a SELECT-only role for the copilot."""
     metadata.create_all(engine)
-    if engine.dialect.name != "postgresql" or not ro_password:
+    if engine.dialect.name != "postgresql":
+        return
+    with engine.begin() as conn:
+        # Columns added after the first release (create_all never alters a table).
+        conn.execute(text("ALTER TABLE alerts ADD COLUMN IF NOT EXISTS features JSONB"))
+    if not ro_password:
         return
     with engine.begin() as conn:
         exists = conn.execute(text("SELECT 1 FROM pg_roles WHERE rolname = 'sentinel_ro'")).first()
@@ -106,3 +113,26 @@ def init_db(engine: Engine, ro_password: str | None = None) -> None:
         conn.execute(text("REVOKE ALL ON ALL TABLES IN SCHEMA public FROM sentinel_ro"))
         for t in COPILOT_TABLES:
             conn.execute(text(f"GRANT SELECT ON {t} TO sentinel_ro"))
+
+
+def with_database(url: str, database: str | None) -> str:
+    """The same server URL pointing at another database (e.g. the dev alert set)."""
+    if not database:
+        return url
+    return make_url(url).set(database=database).render_as_string(hide_password=False)
+
+
+def ensure_database(url: str) -> None:
+    """Create the URL's Postgres database if it does not exist (SQLite creates files itself)."""
+    u = make_url(url)
+    if not u.drivername.startswith("postgresql") or not u.database:
+        return
+    admin = create_engine(u.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    with admin.connect() as conn:
+        found = conn.execute(
+            text("SELECT 1 FROM pg_database WHERE datname = :d"), {"d": u.database}
+        ).first()
+        if not found:
+            name = conn.dialect.identifier_preparer.quote(u.database)
+            conn.execute(text(f"CREATE DATABASE {name}"))
+    admin.dispose()

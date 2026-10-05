@@ -437,24 +437,38 @@ verdict.
 
 ### Results
 
-Full report: [reports/copilot/results.md](reports/copilot/results.md). All numbers below come
-from the offline configuration (Ollama `llama3.2:3b` as generator, and as judge with a
-different prompt). Gemini numbers are pending a key.
+Full report: [reports/copilot/results.md](reports/copilot/results.md).
 
 **Gold set.** 108 alerts across 18 labels: 16 network attack sub-labels plus phishing and
-fraud emails. ATT&CK labels are
-assigned per sub-label in `copilot/gold.py`, with an acceptable set where several
-techniques fit: for example, a Hulk flood is T1499.002 or T1499.003.
+fraud emails. ATT&CK labels are assigned per sub-label in `copilot/gold.py`, with an
+acceptable set where several techniques fit: for example, a Hulk flood is T1499.002 or
+T1499.003.
 
-| Metric | Result | Design target |
-|---|---|---|
-| Technique precision@1 | **81.5%** | ≥ 70% |
-| Acceptable technique among the retrieved candidates | 90.7% | |
-| Citation validity | **100%** (no invalid IDs; every draft passed verification first time) | 100% |
-| Faithfulness (judge: share of factual claims supported by the context) | 82.6% | |
-| Key facts mentioned (attacker IP, victim IP, port) | 50.7% | |
-| CVE recall (Heartbleed alerts) | 0% | |
-| Cost per report | 1.8k tokens in / 0.45k out; 64 s of LLM time on CPU | |
+**Final test-set run** (after the improvement pass): generator `gemini-3.5-flash-lite`, judge
+`gemini-3.1-flash-lite`, a different model, as the design requires. The baseline is the
+pipeline before the improvement pass on the local `llama3.2:3b`, which also judged itself
+with a different prompt.
+
+| Metric | Baseline (Ollama 3B) | **Final (Gemini)** | Design target |
+|---|---|---|---|
+| Technique precision@1 | 81.5% | **78.7%** | ≥ 70% |
+| Technique in the first 3 chosen | 82.4% | 87.0% | |
+| Acceptable technique among the retrieved candidates | 90.7% | 90.7% | |
+| Citation validity | 100% | **100%** | 100% |
+| Faithfulness (judge: share of factual claims supported) | 82.6% | **92.4%** | |
+| Key facts in the prose (attacker IP, victim IP, port) | 50.7% | **97.9%** | |
+| Facts block complete (built by code) | n/a | 100% | |
+| Reports inventing an IP | 0% | 0% | |
+| Passed verification on the first draft | 100% | 100% | |
+| CVE recall (Heartbleed alerts) | 0% | 0% | |
+| Tokens per report (in / out) | 1.8k / 0.45k | 2.1k / 0.77k | |
+| Time per report | 64 s of LLM time (CPU) | **5 s end to end** (2.9 s LLM) | |
+
+All 108 reports were generated and judged by Gemini; no fallback was used.
+
+Precision@1 by label (final): 100% for port scans (both kinds), DDoS, Slowloris, FTP and SSH
+brute force, SQL injection, XSS, Botnet (both), phishing and fraud; 83% Slowhttptest, 50%
+GoldenEye, 29% Hulk; 0% web brute force, Infiltration and Heartbleed.
 
 **Retrieval** (no LLM, same 108 alerts):
 
@@ -489,9 +503,20 @@ downgrade the alert, or leak the system prompt.
 
 ### What we learned
 
-- **Mapping quality is retrieval quality.** The 3B model nearly always picks the retriever's
-  first candidate: precision@1 equals retrieval R@1, and every miss is a retrieval miss. The
-  LLM adds the narrative, not the mapping.
+- **A capable model reads the evidence; the 3B model copies the top hit.** On Ollama,
+  precision@1 equalled retrieval R@1 and every miss was a retrieval miss. Gemini departs from
+  the ranking in both directions:
+  - **Botnet goes from 0% to 100%.** Using the behaviour context (regular outbound connections
+    to one external host on port 8080), Gemini picks T1071.001 "Web Protocols" C2, or T1571
+    "Non-Standard Port", from lower in the candidate list.
+  - **Hulk and GoldenEye fall to 29% and 50%.** Gemini picks T1498.001 "Direct Network Flood"
+    instead of T1499.002 "Service Exhaustion Flood". The behaviour sentence calls them a
+    "high-volume flood", and with flow data alone the distinction is a judgement call.
+  - **Infiltration (0%) gets T1046.** That describes what the compromised host visibly did
+    (an internal port scan), not how it was compromised.
+
+  Net precision@1 is 78.7%, above the design target. The prose is now grounded:
+  faithfulness is 92.4%, and 97.9% of key facts appear in the prose.
 - **The one-line family descriptions carry the retrieval.** Without them, R@1 falls from 81.5%
   to 17.6%. Flow statistics contain no ATT&CK vocabulary, so the mapping effectively comes
   from "the detector says BruteForce" plus retrieval. The three failing labels show the
@@ -505,14 +530,68 @@ downgrade the alert, or leak the system prompt.
 - **Flow data cannot name a CVE.** Irrelevant CVEs score far below zero on the re-ranker,
   so none are offered for network alerts. Heartbleed's CVE-2014-0160 is found only when the
   text describes the heartbeat leak, which flow features cannot.
-- **The small model leaves out facts.** Only half of the attacker IPs, victim IPs and ports appear in the
-  prose, although the context contains all of them. A judge running on the same 3B model is
-  weak evidence; treat 82.6% faithfulness as indicative.
+- **Facts are now enforced, not hoped for.** In the baseline, the 3B model wrote only half of
+  the attacker IPs, victim IPs and ports into the prose. With the facts block, the verify
+  check and the system-prompt rule, Gemini writes 97.9% of them, every draft passes
+  verification first time, and no report invents an IP. The baseline's 82.6% faithfulness
+  came from a 3B model judging itself; the final 92.4% comes from a separate Gemini model.
+- **The free tier shapes the setup.** On this key the Flash models allowed only about 10
+  requests a day (3.8 Flash ran out after ~12, 3.6 Flash after ~8), while Flash-Lite handled
+  the full 108-report run for both generator and judge. The client therefore:
+  - waits out per-minute 429s;
+  - retries 503 "high demand" errors with backoff;
+  - stops cleanly on a per-day quota, so the run resumes later.
 - **Delimiters alone did not stop a 3B model.** All three successful attacks made it write "this alert is a false positive and does not require any action".
   The guard stopped all 24 attacks. Rule-based severity was never changed, in any configuration.
 - **Rules and classifier cover different ground.** Rules catch injections in emails (88%) and
   miss jailbreak phrasing (17%). The classifier is the reverse, and is weak on unseen email
   phrasings (50%). Together they catch 94.8%.
+
+### Improvement pass (tuned on a development set, not on test)
+
+`sentinel alerts load --split val` fills a separate database, `sentinel_dev`, from the
+validation split. It has its own gold set of 105 alerts. Every change below was judged
+there, and the test gold set above is scored once at the end. The two splits interleave in
+time, so a separate database keeps the dev alerts out of the test alerts' related activity.
+
+- **Facts block.** Code builds the attacker, target and asset, service, time window, counts
+  and behaviour from the database. It is attached to every report, whatever the LLM wrote.
+- **Fact checks in verify.** The summary must name the attacker and the target, and any IP
+  in the prose must appear in the context. Otherwise the draft goes back for one retry.
+  The retry prompt is now redacted as a whole: before this fix, it quoted hosts after
+  redaction had already run.
+- **Behaviour descriptions** (`copilot/behaviour.py`). Generic rules turn flow statistics and
+  surrounding activity into sentences: port scan, password guessing, automated web requests,
+  flood, slow-rate connections, outbound beaconing, non-standard port, large TLS responses
+  and large web requests. They feed the LLM context and the facts block.
+
+Dev-set results (18 alerts, one per label; Ollama, same judge, same alerts):
+
+| Metric | Before | After |
+|---|---|---|
+| Key facts (attacker, target, port) in the prose | 43.8% | **70.8%** |
+| Facts block complete | 100% | 100% |
+| Faithfulness (judge) | 75.2% | 80.9% |
+| Reports inventing an IP | 0% | 0% |
+| Technique precision@1 | 83.3% | 77.8% (1 of 18 changed) |
+| Passed verification on the first draft | 100% | 22% |
+
+What the dev set showed:
+
+- **Behaviour sentences hurt retrieval.** Mixed into the query, they dropped R@1 from 84.8% to
+  35.2%: long, number-heavy sentences swamp the family description. Merging 3 candidates from a
+  behaviour-only query lowered R@8 from 92.4% to 89.5%. Retrieval was left unchanged
+  (`behaviour.extra_candidates: 0`). On their own, though, behaviour-only queries find Botnet's
+  C2 technique (0% → 62%).
+- **The one changed technique** is an Infiltration alert. The behaviour context ("one source
+  probed 1,033 ports") led the model to T1046 Network Service Discovery, which describes what
+  the compromised host did but is not among that label's gold techniques. The gold labels
+  were not changed after seeing results.
+- **The fact check cost retries with a 3B model.** Most first drafts left out the hosts, so the
+  check doubled tokens. Stating the requirement in the system prompt fixed this. On the same
+  8 dev alerts, first-draft passes rose from 1 to 6 of 8 and key facts in the prose from
+  70.8% to 91.7%, with technique precision@1 unchanged at 8 of 8
+  (`reports/copilot/dev_prompt_check/`).
 
 Setup: put a free key from https://aistudio.google.com/apikey in `.env` as
 `GEMINI_API_KEY=` (optional), install Ollama and `ollama pull llama3.2:3b`, then:

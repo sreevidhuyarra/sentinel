@@ -8,8 +8,10 @@ or a read-only file handle (SQLite), so even a bug here cannot write, and `alert
 
 from __future__ import annotations
 
+import statistics
 from collections import Counter
 from datetime import datetime, timedelta
+from itertools import pairwise
 from typing import Any
 
 from sqlalchemy import Engine, and_, func, or_, select
@@ -34,10 +36,11 @@ COLUMNS = [
     "severity",
     "reasons",
     "evidence",
+    "features",
     "model_version",
     "status",
 ]
-SUMMARY_COLUMNS = [c for c in COLUMNS if c not in ("reasons", "evidence")]
+SUMMARY_COLUMNS = [c for c in COLUMNS if c not in ("reasons", "evidence", "features")]
 FILTERS = {
     "predicted_family",
     "severity",
@@ -168,4 +171,67 @@ class AlertTools:
             "first": None if first is None else str(first),
             "last": None if last is None else str(last),
             "sample": sorted((_row(r, SUMMARY_COLUMNS) for r in rows), key=lambda d: d["ts"]),
+        }
+
+    def activity(self, alert: dict[str, Any], window_minutes: int = 30) -> dict[str, Any]:
+        """Fan-out of the source, fan-in to the target and timing of the source->target pair.
+
+        The raw material for behaviour descriptions: how many ports / hosts one source
+        touched, how many sources hit one target, and whether the pair's connections are
+        regular (beaconing) and alike (automated). Network alerts only.
+        """
+        if alert["source"] != "network" or not alert.get("src_ip"):
+            return {}
+        ts = datetime.fromisoformat(alert["ts"])
+        win = and_(
+            alerts.c.ts >= ts - timedelta(minutes=window_minutes),
+            alerts.c.ts <= ts + timedelta(minutes=window_minutes),
+        )
+        src, dst = alerts.c.src_ip == alert["src_ip"], alerts.c.dst_ip == alert["dst_ip"]
+        with self.engine.connect() as conn:
+            fan_out = conn.execute(
+                select(
+                    func.count(),
+                    func.count(func.distinct(alerts.c.dst_ip)),
+                    func.count(func.distinct(alerts.c.dst_port)),
+                ).where(win, src)
+            ).one()
+            fan_in = conn.execute(
+                select(func.count(), func.count(func.distinct(alerts.c.src_ip))).where(win, dst)
+            ).one()
+            pair = conn.execute(
+                select(alerts.c.ts, alerts.c.dst_port, alerts.c.features)
+                .where(win, src, dst)
+                .order_by(alerts.c.ts, alerts.c.id)
+                .limit(2000)
+            ).all()
+        times = [r[0] for r in pair]
+        gaps = [(b - a).total_seconds() for a, b in pairwise(times)]
+        feats = [r[2] or {} for r in pair]
+
+        def stat(key: str) -> dict[str, float] | None:
+            vals = [float(f[key]) for f in feats if f.get(key) is not None]
+            if not vals:
+                return None
+            mean = statistics.fmean(vals)
+            sd = statistics.pstdev(vals) if len(vals) > 1 else 0.0
+            return {"mean": mean, "cv": sd / mean if mean else 0.0}
+
+        gap_mean = statistics.fmean(gaps) if gaps else None
+        return {
+            "window_minutes": window_minutes,
+            "from_source": {"alerts": fan_out[0], "hosts": fan_out[1], "ports": fan_out[2]},
+            "to_target": {"alerts": fan_in[0], "sources": fan_in[1]},
+            "pair": {
+                "alerts": len(pair),
+                "ports": len({r[1] for r in pair}),
+                "interval_median_s": statistics.median(gaps) if gaps else None,
+                "interval_cv": (statistics.pstdev(gaps) / gap_mean) if gaps and gap_mean else None,
+                "fwd_bytes": stat("total_length_of_fwd_packet"),
+                "bwd_bytes": stat("total_length_of_bwd_packet"),
+                "duration_us": stat("flow_duration"),
+                "fwd_packets": stat("total_fwd_packet"),
+                "packets_per_s": stat("flow_packets_s"),
+            },
+            "flow": alert.get("features") or {},
         }

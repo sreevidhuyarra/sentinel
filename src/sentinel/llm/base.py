@@ -13,7 +13,15 @@ class LLMError(Exception):
 
 
 class QuotaError(LLMError):
-    """Rate or daily quota reached; the fallback chain moves on to the next provider."""
+    """Rate or daily quota reached; the fallback chain moves on to the next provider.
+
+    `daily` is True only when the provider says the per-day quota is spent, so a
+    per-minute limit does not write off the rest of the day.
+    """
+
+    def __init__(self, message: str, daily: bool = False) -> None:
+        super().__init__(message)
+        self.daily = daily
 
 
 @dataclass

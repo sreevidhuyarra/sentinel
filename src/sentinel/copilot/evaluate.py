@@ -19,9 +19,11 @@ import numpy as np
 
 from sentinel.common.logging import get_logger
 from sentinel.copilot import prompts
-from sentinel.copilot.graph import Copilot
+from sentinel.copilot.graph import Copilot, retrieve_techniques
+from sentinel.copilot.models import report_prose
 from sentinel.copilot.rag import Retriever
-from sentinel.llm.base import LLMError, LLMProvider
+from sentinel.llm.base import LLMError, LLMProvider, QuotaError
+from sentinel.llm.redact import Redactor
 
 log = get_logger(__name__)
 
@@ -38,7 +40,10 @@ class RetrievalConfig:
     dense: bool = True
     rerank: bool = True
     hints: bool = True
+    behaviour: bool = False
 
+
+MERGED = "deployed: hybrid+rerank, behaviour candidates merged"
 
 RETRIEVAL_CONFIGS = [
     RetrievalConfig("bm25", dense=False, rerank=False),
@@ -47,6 +52,8 @@ RETRIEVAL_CONFIGS = [
     RetrievalConfig("hybrid+rerank"),
     RetrievalConfig("hybrid+rerank, no family hints", hints=False),
     RetrievalConfig("hybrid, no family hints", rerank=False, hints=False),
+    RetrievalConfig("hybrid+rerank + behaviour", behaviour=True),
+    RetrievalConfig("hybrid+rerank, behaviour, no family hints", hints=False, behaviour=True),
 ]
 
 
@@ -81,23 +88,48 @@ def evaluate_retrieval(copilot: Copilot, gold: list[dict[str, Any]]) -> dict[str
         s.update(copilot.gather_context({**s}))
         contexts.append(s)
     out: dict[str, Any] = {}
-    for cfg in RETRIEVAL_CONFIGS:
+    for cfg in [*RETRIEVAL_CONFIGS, RetrievalConfig(MERGED)]:
         t0 = time.perf_counter()
-        ranked = [
-            _search(
-                copilot.retriever,
-                prompts.retrieval_query(c["alert"], c["related"], cfg.hints),
-                cfg,
-                max(KS),
-            )
-            for c in contexts
-        ]
+        if cfg.name == MERGED:  # what the copilot deploys: hint ranking + behaviour extras
+            ranked = [
+                [
+                    h.id
+                    for h in retrieve_techniques(
+                        copilot.retriever,
+                        c["alert"],
+                        c["related"],
+                        c.get("behaviour", []),
+                        max(KS),
+                        copilot.cfg.behaviour.extra_candidates,
+                    )
+                ]
+                for c in contexts
+            ]
+        else:
+            ranked = [
+                _search(
+                    copilot.retriever,
+                    prompts.retrieval_query(
+                        c["alert"],
+                        c["related"],
+                        cfg.hints,
+                        c.get("behaviour") if cfg.behaviour else None,
+                    ),
+                    cfg,
+                    max(KS),
+                )
+                for c in contexts
+            ]
         m: dict[str, Any] = dict(rank_metrics(ranked, [g["acceptable"] for g in gold]))
         m["ms_per_query"] = 1000 * (time.perf_counter() - t0) / len(gold)
         by_label: dict[str, list[bool]] = {}
         for ids, g in zip(ranked, gold, strict=True):
             by_label.setdefault(g["label"], []).append(any(t in g["acceptable"] for t in ids[:3]))
         m["recall@3_by_label"] = {k: float(np.mean(v)) for k, v in by_label.items()}
+        cand: dict[str, list[bool]] = {}
+        for ids, g in zip(ranked, gold, strict=True):
+            cand.setdefault(g["label"], []).append(any(t in g["acceptable"] for t in ids))
+        m["recall@8_by_label"] = {k: float(np.mean(v)) for k, v in cand.items()}
         out[cfg.name] = m
         log.info(
             "retrieval %s: %s",
@@ -115,11 +147,7 @@ def _mentions(report_text: str, fact: str) -> bool:
 
 
 def report_text(rep: Any) -> str:
-    d = rep.draft
-    parts = [d.title, d.summary, d.severity_rationale, d.injection_notes, d.limitations]
-    parts += [e.event for e in d.timeline] + [h.ip + " " + h.role for h in d.affected_hosts]
-    parts += [t.rationale for t in d.techniques] + list(d.recommended_actions)
-    return "\n".join(parts)
+    return report_prose(rep.draft)
 
 
 def score_report(rep: Any, g: dict[str, Any]) -> dict[str, Any]:
@@ -139,6 +167,16 @@ def score_report(rep: Any, g: dict[str, Any]) -> dict[str, Any]:
         ),
         "verified_first_try": rep.verification["passed"] and rep.verification["attempts"] == 1,
         "verified": rep.verification["passed"],
+        # Deterministic faithfulness: IPs the prose still invents after the retry.
+        "invented_ips": sum(
+            "in the text is not in the context" in e for e in rep.verification["errors"]
+        ),
+        # Facts block (code-built): does it carry who attacked whom?
+        "facts_complete": (
+            bool(rep.facts.get("attacker")) and bool(rep.facts.get("target"))
+            if g["key_facts"]
+            else None
+        ),
         "dropped_citations": len(rep.verification["dropped_citations"]),
         "severity": rep.severity["level"],
         "input_tokens": rep.usage.get("input_tokens", 0),
@@ -174,10 +212,18 @@ JUDGE_SCHEMA: dict[str, Any] = {
 
 
 def judge_faithfulness(judge: LLMProvider, context: str, rep: Any) -> dict[str, Any] | None:
-    """Share of the report's factual claims supported by its context (LLM-as-judge)."""
-    prompt = f"CONTEXT\n{context}\n\nREPORT\n{report_text(rep)}"
+    """Share of the report's factual claims supported by its context (LLM-as-judge).
+
+    The judge sees the same redacted text a generator would (one mapping for context and
+    report, so placeholders still match). A quota error propagates, so the evaluation
+    stops and resumes later instead of saving rows without a score.
+    """
+    redactor = Redactor()
+    prompt = redactor.redact(f"CONTEXT\n{context}\n\nREPORT\n{report_text(rep)}")
     try:
         claims = judge.generate(JUDGE_SYSTEM, prompt, JUDGE_SCHEMA).json().get("claims", [])
+    except QuotaError:
+        raise
     except LLMError as exc:
         log.warning("judge failed: %s", exc)
         return None
@@ -210,6 +256,10 @@ def summarise(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "candidate_recall": mean("candidate_hit"),
         "cve_recall": float(np.mean([r["cve_hit"] for r in cve_rows])) if cve_rows else None,
         "fact_recall": mean("fact_recall"),
+        "facts_block_complete": mean("facts_complete"),
+        "reports_with_invented_ips": (
+            float(np.mean([r.get("invented_ips", 0) > 0 for r in rows])) if rows else None
+        ),
         "verified_first_try": mean("verified_first_try"),
         "citation_validity": 1.0,  # enforced: verify drops anything not in the context
         "dropped_citations_per_report": mean("dropped_citations"),
@@ -256,7 +306,11 @@ def evaluate_reports(
             state.update(copilot.gather_context({**state}))
             state.update(copilot.map_attack({**state}))
             state.update(copilot.assess_severity({**state}))
-            j = judge_faithfulness(judge, prompts.build_context(dict(state)), rep)
+            try:
+                j = judge_faithfulness(judge, prompts.build_context(dict(state)), rep)
+            except QuotaError as exc:
+                log.warning("judge quota reached (%s); stopping, rerun to resume", exc)
+                break
             if j:
                 row.update(j)
         rows.append(row)

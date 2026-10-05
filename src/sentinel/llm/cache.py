@@ -158,11 +158,13 @@ class ThrottledProvider:
         self._acquire()
         try:
             return self.inner.generate(system, prompt, schema, temperature)
-        except QuotaError:
-            # The server says the quota is gone (limits vary by account): stop for today.
-            now = self._clock()
-            for _ in range(max(0, self.remaining_today())):
-                self._store.record_call(self.bucket, now)
+        except QuotaError as exc:
+            # Only a per-day quota writes off the rest of the day (limits vary by account);
+            # a per-minute limit that outlasted the provider's own wait just fails this call.
+            if exc.daily:
+                now = self._clock()
+                for _ in range(max(0, self.remaining_today())):
+                    self._store.record_call(self.bucket, now)
             raise
 
 

@@ -40,8 +40,11 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
         `/copilot/investigate/{id}`, `/reports/{id}`; red-team suite
   - [x] gold-set evaluation on Ollama (108 alerts): P@1 81.5%, citations 100% valid,
         faithfulness 82.6% (same-model judge), key facts 50.7%
-  - [ ] rerun `sentinel copilot evaluate` with Gemini once GEMINI_API_KEY is in .env
-        (needs ~220 requests: raise gemini_rpd / judge_rpd to the account's limits or run over 2 days)
+  - [x] improvement pass, tuned on the dev set (`sentinel_dev` DB, validation split): facts block,
+        verify fact checks, behaviour descriptions (LLM context only), redacted retry prompts
+  - [x] final test-set run on Gemini (2026-10-03): P@1 78.7%, faithfulness 92.4%, key facts
+        97.9%, citations 100%, 5 s/report; Ollama baseline kept in reports/copilot/baseline_ollama/
+  - [ ] optional: red team on Gemini (`copilot redteam --provider gemini`, ~72 requests)
 - [ ] Module 6 — MLOps (Prometheus/Grafana, Evidently, Prefect) + streaming detector + React dashboard
 
 ## Commands (Windows: `make` is not installed, `uv` is not on PATH → `python -m uv` or `.venv\Scripts\*`)
@@ -107,6 +110,22 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
   LLM takes the top candidate). Key facts only 50.7%: the 3B model leaves IPs/ports out of prose.
 - Prompts must be deterministic for the cache: every SQL feeding a prompt needs a total
   ORDER BY (ties in `abs(id - x)` reordered after a Postgres restart and missed the cache).
+- Tune the copilot only on the dev set: `sentinel alerts load --split val` (database
+  `sentinel_dev`, separate because splits interleave in time) and `copilot evaluate --dev`
+  (`--baseline` = pipeline before the improvement pass). The test gold set is scored once.
+- Dev findings: behaviour sentences in the retrieval query drop R@1 84.8% -> 35.2%; merged
+  behaviour candidates drop R@8 92.4% -> 89.5% -> `behaviour.extra_candidates: 0`. Facts check
+  lifts key facts in prose 43.8% -> 70.8% (-> 91.7% once stated in the system prompt).
+- Retry prompts quote hosts: always redact the whole prompt, errors included (was a leak).
+  The judge prompt is redacted too (was a leak), and the IPv4 pattern must match an IP followed
+  by a sentence-ending "." (it did not). Only two LLM call sites exist: graph.draft_report and
+  evaluate.judge_faithfulness.
+- User's Gemini free tier: Flash models (3.8/3.6) allow only ~10 requests/day; Flash-Lite
+  (3.5 generator, 3.1 judge) handled 108 reports + judging. 429s carry QuotaFailure.quotaId
+  ("...PerDay..." vs per-minute) and RetryInfo; only PerDay writes off the day's budget.
+  503 "high demand" is common: retried with backoff.
+- Gemini vs 3B: Gemini departs from retrieval rank using the behaviour context (Botnet 0 -> 100%
+  P@1, picks T1071.001) but calls Hulk/GoldenEye T1498.001 (network flood, not in gold).
 - `copilot evaluate` checkpoints to reports/copilot/eval_rows.<generator>.partial.jsonl and
   resumes; `--fresh` starts over. Long runs: launch detached (Start-Process) — Claude Code
   background tasks are killed after ~2 h.
