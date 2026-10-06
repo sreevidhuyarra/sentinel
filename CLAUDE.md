@@ -49,7 +49,18 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
   - [x] red team on Gemini: attack success 20.8% none / 12.5% delimiters / 4.2% guard (1/24)
   - [x] guard sentence-pair scoring (`copilot guard-rethreshold`): Gemini red team 4.2% -> 0%,
         guard detects 24/24
-- [ ] Module 6 — MLOps (Prometheus/Grafana, Evidently, Prefect) + streaming detector + React dashboard
+- [x] Module 6 — MLOps (Prometheus/Grafana, Evidently, Prefect) + streaming detector + React dashboard
+  - [x] stream: Redpanda replayer -> detector micro-batches -> Postgres alerts + 5% `flows` sample
+        -> `alerts.new`; SHAP once per campaign; review flag served (stream + API)
+  - [x] metrics (detector :9101, drift :9103, API /metrics), Prometheus + Grafana in compose
+  - [x] drift watcher (Evidently PSI, all + benign windows) -> Prefect `sentinel-retrain`
+  - [x] React dashboard at /app/ (served by the API), WebSocket alert feed
+  - [x] Dockerfile + compose profiles app/demo; CI jobs frontend, compose, image
+  - [x] leak fix in retraining (live flows dropped from val/test, production re-scored);
+        leaked v4 rolled back to v3 (user OK). Re-run v5: 0.9988 vs 0.9957 on the same rows,
+        mostly 1 WebAttack flow of 22. Promotion now needs a paired bootstrap (95% CI of the gain
+        > 0): v5 passes (0.0031, CI 0.0001-0.0104; PortScan also better), but the user chose to
+        keep v3 because v5 trained on test-split flows (would inflate all later test-split evals)
 
 ## Commands (Windows: `make` is not installed, `uv` is not on PATH → `python -m uv` or `.venv\Scripts\*`)
 - `uv sync` — install; `uv run pytest -m "not slow"` — fast tests (synthetic data)
@@ -91,6 +102,22 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
 - 'X - Attempted' labels (no payload) → Benign by default (`data.attempted_policy`).
 - 'Infiltration - Portscan' (~72k) → PortScan family; true Infiltration is only 36 flows.
 - Rare classes: Heartbleed 11, WebAttack ~100, Infiltration 36 — use macro-F1 / per-class recall.
+
+## Module 6 notes
+- The replayer streams the **test** split by default. Live flows are later used for
+  retraining, so `ids.dataset.without_overlap` drops val/test rows identical to a live flow,
+  and `train(baseline=...)` re-scores production on the reduced test set for promotion.
+  Run 1 (before the fix) promoted v4 on a leaked score: 0.9957 -> 0.9988.
+- Drift in the "all" window during Friday was the attack mix; the benign window stayed 0%.
+- Stream SHAP on every alert: 220 flows/s; once per campaign: ~1,440 flows/s, scoring
+  ~46-49 ms per 500 flows (p95 48.6 ms).
+- Prefect tasks taking an Engine/DataFrame need `cache_policy=NONE` (hash warning otherwise).
+- drift_demo.ps1: probe ports with TcpClient on 127.0.0.1; Invoke-WebRequest on "localhost"
+  hung in PowerShell 5.1.
+- Docker: uv cache must be a BuildKit cache mount, or it is baked in (image 8.6 GB).
+- Node 24 is a user install in %LOCALAPPDATA%\Programs\nodejs (not on PATH by default).
+- Dashboard colours: one fixed colour per family (frontend/src/lib/palette.ts), validated
+  all-pairs for colour-blind separation; status red is only for severity; "Unknown anomaly" grey.
 
 ## Module 5 notes
 - User has the Gemini free tier only: everything goes through `llm.factory.build_provider`

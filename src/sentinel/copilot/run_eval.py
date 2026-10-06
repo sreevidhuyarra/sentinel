@@ -70,7 +70,7 @@ def run(
     """Gold-set evaluation. With `dev`, on the development alert set (validation split, its
     own database) and into reports/copilot/dev/: tune there, report the test set once."""
     settings = get_settings()
-    database = params.copilot.dev_database if dev else None
+    database = params.copilot.dev_database if dev else params.copilot.eval_database
     # `baseline`: the pipeline before the improvement pass (no behaviour context, no fact
     # checks), for a like-for-like comparison on the same alerts.
     name = ("dev" if dev else "") + ("_baseline" if baseline else "")
@@ -134,7 +134,7 @@ def run(
 
 def redteam_alerts(params: Params, n: int) -> list[int]:
     """Half email alerts (true phishing / fraud), half network alerts across families."""
-    admin = make_engine(get_settings().postgres_url)
+    admin = make_engine(with_database(get_settings().postgres_url, params.copilot.eval_database))
     rng = np.random.default_rng(params.seed + 1)
     with admin.connect() as conn:
         email = [
@@ -172,7 +172,8 @@ def run_redteam(params: Params, n: int, provider: list[str] | None = None) -> di
     out_dir = params.resolve(REPORTS)
     out_dir.mkdir(parents=True, exist_ok=True)
     llm = build_provider(params, order=provider) if provider else "config"
-    copilot = build_copilot(params, llm=llm)
+    ro_url = with_database(get_settings().postgres_ro_url, params.copilot.eval_database)
+    copilot = build_copilot(params, llm=llm, db_url=ro_url)
     out = redteam.run(copilot, redteam_alerts(params, n), params.seed)
     out["generator"] = getattr(copilot.llm, "name", None)
     (out_dir / "redteam.json").write_text(json.dumps(out, indent=2, default=str))

@@ -102,8 +102,8 @@ stages:
       size: 265107928
     - path: src/sentinel/ids
       hash: md5
-      md5: 8b771944f572737fdbdec43fc5aead8d.dir
-      size: 78550
+      md5: e9a891bd99aab5f139d27bf8b3d00efd.dir
+      size: 85602
       nfiles: 18
     params:
       params.yaml:
@@ -111,6 +111,8 @@ stages:
           benign_fpr_target: 0.01
           class_weight_power: 0.5
           max_class_weight: 1000
+          promotion_bootstrap: 2000
+          promotion_alpha: 0.05
           severity_bands:
           - 0.6
           - 0.8
@@ -180,8 +182,8 @@ stages:
       nfiles: 1
     - path: src/sentinel/ids
       hash: md5
-      md5: 8b771944f572737fdbdec43fc5aead8d.dir
-      size: 78550
+      md5: e9a891bd99aab5f139d27bf8b3d00efd.dir
+      size: 85602
       nfiles: 18
     params:
       params.yaml:
@@ -189,6 +191,8 @@ stages:
           benign_fpr_target: 0.01
           class_weight_power: 0.5
           max_class_weight: 1000
+          promotion_bootstrap: 2000
+          promotion_alpha: 0.05
           severity_bands:
           - 0.6
           - 0.8
@@ -266,8 +270,8 @@ stages:
       nfiles: 8
     - path: src/sentinel/ids
       hash: md5
-      md5: 8b771944f572737fdbdec43fc5aead8d.dir
-      size: 78550
+      md5: e9a891bd99aab5f139d27bf8b3d00efd.dir
+      size: 85602
       nfiles: 18
     params:
       params.yaml:
@@ -299,6 +303,8 @@ stages:
           benign_fpr_target: 0.01
           class_weight_power: 0.5
           max_class_weight: 1000
+          promotion_bootstrap: 2000
+          promotion_alpha: 0.05
           severity_bands:
           - 0.6
           - 0.8

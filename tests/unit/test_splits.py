@@ -3,7 +3,9 @@ from datetime import datetime, timedelta
 import polars as pl
 import pytest
 
+from sentinel.common.config import Params
 from sentinel.data.splits import holdout_family_split, random_split, temporal_split
+from sentinel.ids.dataset import load_splits, with_extra_train, without_overlap
 
 
 def _flows(n_benign: int = 1000, n_attack: int = 500, n_rare: int = 11) -> pl.DataFrame:
@@ -57,3 +59,19 @@ def test_random_split_covers_all_rows() -> None:
     out = random_split(_flows())
     assert out.height == 1511
     assert set(out["split"]) == {"train", "val", "test"}
+
+
+def test_live_flows_leave_validation_and_test_before_retraining(built: Params) -> None:
+    """Retraining on replayed test flows must not score the candidate on those same flows."""
+    s = load_splits(built, "full")
+    live = pl.concat([s.test.frame.head(40), s.val.frame.head(10), s.train.frame.head(5)])
+    n_val, n_test = len(s.val.y), len(s.test.y)
+    reduced, dropped = without_overlap(s, live)
+    assert dropped["test"] >= 40 and dropped["val"] >= 10
+    assert len(reduced.test.y) == n_test - dropped["test"] == reduced.test.frame.height
+    assert len(reduced.val.y) == n_val - dropped["val"]
+    assert len(reduced.train.y) == len(s.train.y)
+    keys = {row.tobytes() for row in s.spec.to_numpy(live)}
+    assert not any(row.tobytes() in keys for row in reduced.test.X)
+    retrain = with_extra_train(reduced, live)
+    assert len(retrain.train.y) == len(s.train.y) + live.height

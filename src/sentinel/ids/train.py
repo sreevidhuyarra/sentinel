@@ -17,15 +17,23 @@ from typing import Any
 
 import mlflow
 import numpy as np
+import polars as pl
 
 from sentinel.common.config import Params, get_settings
 from sentinel.common.logging import get_logger
 from sentinel.ids.bundle import IDSBundle
 from sentinel.ids.calibration import TemperatureBias
-from sentinel.ids.dataset import CLASSES, Sample, Splits, load_splits
+from sentinel.ids.dataset import (
+    CLASSES,
+    Sample,
+    Splits,
+    load_splits,
+    with_extra_train,
+    without_overlap,
+)
 from sentinel.ids.decision import choose_threshold, decide
 from sentinel.ids.explain import global_importance, plot_global_importance
-from sentinel.ids.metrics import evaluate, flat
+from sentinel.ids.metrics import evaluate, flat, paired_bootstrap_f1
 from sentinel.ids.models import LogitModel
 from sentinel.ids.models.gbm import LightGBMModel, fit_lightgbm, fit_xgboost
 from sentinel.ids.models.linear import fit_logreg
@@ -128,7 +136,16 @@ def train(
     register: bool = True,
     out_dir: Path | None = None,
     reports_dir: Path | None = None,
+    extra_train: pl.DataFrame | None = None,
+    run_name: str | None = None,
+    baseline: IDSBundle | None = None,
 ) -> dict[str, Any]:
+    """Train, evaluate on the fixed test split, register, promote only if better.
+
+    `extra_train` (labelled live flows) is appended to the training split only (retraining);
+    validation and test rows identical to a live flow are dropped first, and `baseline` (the
+    production bundle) is re-scored on that reduced test set for the promotion decision.
+    """
     if "lightgbm" not in models:
         raise ValueError("lightgbm is required: it is the production model and the explainer")
     ids = params.ids
@@ -139,6 +156,12 @@ def train(
     mlflow.set_tracking_uri(get_settings().mlflow_tracking_uri)
     mlflow.set_experiment(EXPERIMENT)
     s = load_splits(params, sample)
+    n_extra, dropped = 0, {"val": 0, "test": 0}
+    if extra_train is not None and not extra_train.is_empty():
+        s, dropped = without_overlap(s, extra_train)
+        s = with_extra_train(s, extra_train)
+        n_extra = len(extra_train)
+        log.info("dropped held-out rows seen in live traffic: %s", dropped)
     log.info(
         "loaded %s splits: train %d, val %d, test %d",
         sample,
@@ -149,11 +172,14 @@ def train(
 
     results: dict[str, dict[str, Any]] = {}
     scored: dict[str, Scored] = {}
-    with mlflow.start_run(run_name=f"ids-train-{sample}") as parent:
+    with mlflow.start_run(run_name=run_name or f"ids-train-{sample}") as parent:
         mlflow.log_params(
             {
                 "sample": sample,
                 "n_train": len(s.train.y),
+                "n_extra_train": n_extra,
+                "n_val_dropped": dropped["val"],
+                "n_test_dropped": dropped["test"],
                 "n_features": len(s.feature_names),
                 "class_weight_power": ids.class_weight_power,
                 "benign_fpr_target": ids.benign_fpr_target,
@@ -235,7 +261,38 @@ def train(
         _write_reports(results, s, lg.model, reports_dir, figures)
         mlflow.log_artifacts(str(reports_dir), artifact_path="reports")
         version = log_bundle(out_dir, register=register)
-        decision = promote(version, 1.5 * ids.benign_fpr_target) if version else None
+        production_value, gain_ci = None, None
+        if baseline is not None:
+            base_proba = baseline.proba(s.test.X)
+            base_pred = decide(base_proba, baseline.threshold)
+            production_value = float(evaluate(s.test.y, base_pred, base_proba)["macro_f1"])
+            boot = paired_bootstrap_f1(
+                s.test.y,
+                decide(test_proba, threshold),
+                base_pred,
+                ids.promotion_bootstrap,
+                ids.promotion_alpha,
+                seed=params.seed,
+            )
+            gain_ci = (boot["ci_low"], boot["ci_high"])
+            mlflow.log_metrics(
+                {"production_test_macro_f1": production_value}
+                | {f"promotion_{k}": v for k, v in boot.items()}
+            )
+            log.info(
+                "production on the same test rows: macro-F1 %.4f; gain %.4f (95%% CI %.4f to "
+                "%.4f, not better in %.0f%% of resamples)",
+                production_value,
+                boot["gain"],
+                boot["ci_low"],
+                boot["ci_high"],
+                100 * boot["p_not_better"],
+            )
+        decision = (
+            promote(version, 1.5 * ids.benign_fpr_target, production_value, gain_ci)
+            if version
+            else None
+        )
 
     return {"models": results, "registry": decision}
 

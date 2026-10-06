@@ -1,0 +1,16 @@
+# Sentinel services run either on the host (uv / CLI: host.docker.internal) or in compose
+# (profile "app": service names). Whichever mode is not running shows as down.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: detector
+    static_configs: [{targets: ["host.docker.internal:9101", "detector:9101"]}]
+  - job_name: replayer
+    static_configs: [{targets: ["host.docker.internal:9102", "replayer:9102"]}]
+  - job_name: api
+    metrics_path: /metrics
+    static_configs: [{targets: ["host.docker.internal:8000", "api:8000"]}]
+  - job_name: drift
+    static_configs: [{targets: ["host.docker.internal:9103", "drift:9103"]}]

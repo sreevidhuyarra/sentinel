@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 
-from sentinel.common.config import load_params
+from sentinel.common.config import Params, load_params
 from sentinel.common.logging import configure_logging
+
+if TYPE_CHECKING:
+    from sentinel.mlops.watch import DriftWatcher
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 data_app = typer.Typer(no_args_is_help=True, help="Data pipeline: ingest, build, synthetic sample.")
@@ -246,7 +250,8 @@ def alerts_load(
     source: str = typer.Option("all", help="network, email or all"),
     split: str = typer.Option("test", help="test (the alert DB) or val (the dev set)"),
     database: str | None = typer.Option(
-        None, help="Postgres database (default: from .env for test, copilot.dev_database for val)"
+        None,
+        help="Postgres database (default: copilot.eval_database for test, dev_database for val)",
     ),
     params_file: Path | None = None,
 ) -> None:
@@ -265,7 +270,7 @@ def alerts_load(
     if split not in ("test", "val"):
         raise typer.BadParameter("split must be test or val")
     p, s = load_params(params_file), get_settings()
-    db = database or (p.copilot.dev_database if split == "val" else None)
+    db = database or (p.copilot.dev_database if split == "val" else p.copilot.eval_database)
     url = with_database(s.postgres_url, db)
     ensure_database(url)
     engine = make_engine(url)
@@ -412,6 +417,186 @@ def copilot_redteam(
 
     out = run_redteam(load_params(params_file), n, _providers(provider))
     typer.echo(json.dumps(out["summary"], indent=2))
+
+
+stream_app = typer.Typer(no_args_is_help=True, help="Module 6: streaming replayer and detector.")
+app.add_typer(stream_app, name="stream")
+
+
+@stream_app.command("replay")
+def stream_replay(
+    days: str | None = typer.Option(None, help="comma-separated, e.g. monday or friday"),
+    split: str | None = typer.Option("test", help="train / val / test, or empty for all"),
+    rate: float | None = typer.Option(None, help="flows per second (default: params)"),
+    limit: int | None = typer.Option(None, help="stop after N flows"),
+    params_file: Path | None = None,
+) -> None:
+    """Publish recorded flows to net.flows in time order at a fixed rate."""
+    import polars as pl
+    from confluent_kafka import Producer
+    from prometheus_client import start_http_server
+
+    from sentinel.common.config import get_settings
+    from sentinel.services.api import load_production_models
+    from sentinel.stream.detector import required_inputs
+    from sentinel.stream.replayer import replay, select_flows
+
+    p, s = load_params(params_file), get_settings()
+    inputs = required_inputs(load_production_models().detector)
+    frame = select_flows(
+        pl.read_parquet(p.resolve(p.data.processed_dir) / "flows.parquet"),
+        split or None,
+        days.split(",") if days else None,
+        limit,
+    )
+    start_http_server(p.stream.replayer_metrics_port)
+    producer = Producer({"bootstrap.servers": s.kafka_bootstrap, "linger.ms": 20})
+    n = replay(
+        producer,
+        frame.iter_rows(named=True),
+        inputs,
+        p.stream.flows_topic,
+        p.stream.rate if rate is None else rate,
+    )
+    typer.echo(f"replayed {n} flows")
+
+
+@stream_app.command("detect")
+def stream_detect(params_file: Path | None = None) -> None:
+    """Consume net.flows, score in micro-batches, store alerts, publish alerts.new."""
+    import signal
+
+    from confluent_kafka import Consumer, Producer
+    from prometheus_client import start_http_server
+
+    from sentinel.common.config import get_settings
+    from sentinel.db.schema import init_db, make_engine
+    from sentinel.services.api import load_production_models
+    from sentinel.stream.detector import StreamDetector, run
+    from sentinel.stream.metrics import MODEL
+
+    p, s = load_params(params_file), get_settings()
+    m = load_production_models()
+    engine = make_engine(s.postgres_url)
+    init_db(engine, s.postgres_ro_password)
+    MODEL.info({"ids": m.ids_source, "anomaly": m.anomaly_source or "none"})
+    start_http_server(p.stream.detector_metrics_port)
+    sd = StreamDetector(
+        detector=m.detector,
+        engine=engine,
+        model_version=m.ids_source,
+        producer=Producer({"bootstrap.servers": s.kafka_bootstrap}),
+        alert_topic=p.stream.alerts_topic,
+        sample_rate=p.stream.sample_rate,
+        explain=p.stream.explain,
+        max_explain=p.stream.max_explain,
+        review=p.stream.review,
+        seed=p.seed,
+    )
+    consumer = Consumer(
+        {
+            "bootstrap.servers": s.kafka_bootstrap,
+            "group.id": "sentinel-detector",
+            "auto.offset.reset": "earliest",
+            "enable.auto.commit": False,
+        }
+    )
+    stopping = {"now": False}
+    signal.signal(signal.SIGINT, lambda *_: stopping.update(now=True))
+    try:
+        n = run(
+            consumer,
+            sd,
+            p.stream.flows_topic,
+            p.stream.max_batch,
+            p.stream.max_wait_s,
+            stop=lambda: stopping["now"],
+        )
+    finally:
+        consumer.close()
+    typer.echo(f"scored {n} flows")
+
+
+mlops_app = typer.Typer(no_args_is_help=True, help="Module 6: drift detection and retraining.")
+app.add_typer(mlops_app, name="mlops")
+
+
+def _drift_watcher(p: Params) -> DriftWatcher:
+    import polars as pl
+
+    from sentinel.common.config import get_settings
+    from sentinel.db.schema import init_db, make_engine
+    from sentinel.ids.bundle import IDSBundle
+    from sentinel.mlops.drift import reference_frame
+    from sentinel.mlops.watch import DriftWatcher, spawn_retrain
+
+    s = get_settings()
+    engine = make_engine(s.postgres_url)
+    init_db(engine, s.postgres_ro_password)
+    inputs = sorted(IDSBundle.load(p.resolve(Path("models/ids"))).spec.input_columns)
+    ref = reference_frame(
+        pl.read_parquet(p.resolve(p.data.reference_dir) / "reference.parquet"),
+        inputs,
+        p.mlops.reference_rows,
+        p.seed,
+    )
+    return DriftWatcher(engine, ref, inputs, p.mlops, spawn_retrain)
+
+
+@mlops_app.command("drift-check")
+def mlops_drift_check(params_file: Path | None = None) -> None:
+    """One drift check on the current live window (no retraining)."""
+    p = load_params(params_file)
+    w = _drift_watcher(p)
+    w.start_retrain = lambda reason: typer.echo(f"(would retrain: {reason})")
+    out = w.check()
+    typer.echo(
+        json.dumps(
+            {
+                k: {kk: vv for kk, vv in v.items() if kk != "scores"} if isinstance(v, dict) else v
+                for k, v in out.items()
+            },
+            indent=2,
+            default=str,
+        )
+    )
+
+
+@mlops_app.command("drift-watch")
+def mlops_drift_watch(params_file: Path | None = None) -> None:
+    """Check drift every `mlops.interval_s`, export metrics, trigger retraining."""
+    import time
+
+    from prometheus_client import start_http_server
+
+    from sentinel.common.logging import get_logger
+
+    p = load_params(params_file)
+    w = _drift_watcher(p)
+    start_http_server(p.mlops.metrics_port)
+    log = get_logger("sentinel.mlops")
+    while True:
+        try:
+            out = w.check()
+            log.info(
+                "drift: %s",
+                {k: (v.get("share"), v.get("n")) for k, v in out.items() if isinstance(v, dict)},
+            )
+        except Exception as exc:  # keep watching; one failed check must not stop the job
+            log.error("drift check failed: %s", exc)
+        time.sleep(p.mlops.interval_s)
+
+
+@mlops_app.command("retrain")
+def mlops_retrain(
+    reason: str = typer.Option("manual", help="why retraining was started"),
+    params_file: Path | None = None,
+) -> None:
+    """Prefect flow: labelled live flows -> retrain -> evaluate -> stage -> promote if better."""
+    from sentinel.mlops.retrain import retrain_flow
+
+    out = retrain_flow(reason, str(params_file) if params_file else None)
+    typer.echo(json.dumps(out, indent=2, default=str))
 
 
 @app.command()

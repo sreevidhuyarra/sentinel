@@ -39,6 +39,10 @@ ids:
   # 1 = inverse frequency. Chosen by the imbalance study.
   class_weight_power: 0.5
   max_class_weight: 1000
+  # Retraining promotes a candidate only if a paired bootstrap over test flows puts the
+  # macro-F1 gain over production above zero (95% interval): a one-flow win is noise.
+  promotion_bootstrap: 2000
+  promotion_alpha: 0.05
   # Calibrated attack-probability cut points for Low / Medium / High / Critical.
   severity_bands: [0.6, 0.8, 0.95]
   # Tuning budget per model family: whichever of the two limits is hit first.
@@ -179,6 +183,8 @@ copilot:
   related_window_minutes: 30
   # Development alert set (validation split, own database): tune here, never on test.
   dev_database: sentinel_dev
+  # Frozen test alert set for evaluation (copy of the alert DB before streaming began).
+  eval_database: sentinel_eval
   dev_email_sample: {phishing: 60, fraud: 60}
   n_techniques: 8   # retrieved ATT&CK candidates the LLM may choose from
   n_cves: 3
@@ -224,3 +230,34 @@ copilot:
     - {cidr: 192.168.10.3, name: Windows Server 2016 domain controller and DNS, criticality: critical}
     - {cidr: 205.174.165.0/24, name: attacker network (external), criticality: low}
     - {cidr: 172.16.0.1, name: firewall NAT address, criticality: medium}
+
+stream:
+  flows_topic: net.flows
+  alerts_topic: alerts.new
+  rate: 500          # replayer flows/s (0 = as fast as possible)
+  max_batch: 500     # detector micro-batch: up to this many flows...
+  max_wait_s: 0.2    # ...or this long, whichever comes first
+  sample_rate: 0.05  # share of scored flows stored in `flows` for drift and retraining
+  explain: true      # SHAP / anomaly reasons for alerts...
+  max_explain: 50    # ...one per campaign (source, target, family) per batch, at most this many
+  review: true       # Module 4 review flag: store member-disagreement flows as Low alerts
+  detector_metrics_port: 9101
+  replayer_metrics_port: 9102
+
+mlops:
+  interval_s: 60          # seconds between drift checks
+  window_minutes: 10      # live flows (sampled) per check
+  min_window_flows: 200   # skip a window with fewer flows
+  reference_rows: 5000    # benign training flows in the reference
+  method: psi
+  feature_threshold: 0.1  # a feature drifts at PSI >= 0.1
+  # Share of drifted features that triggers retraining. On the test split, normal traffic
+  # scores 0-5% against the benign reference and attack-heavy windows 41-76%.
+  drift_threshold: 0.2
+  trigger_window: all     # all = any traffic change; benign = only flows the model passed
+  consecutive: 2          # checks in a row above the threshold
+  cooldown_minutes: 60
+  retrain_models: [lightgbm, mlp]
+  min_live_rows: 500      # labelled live flows needed to retrain
+  max_live_rows: 200000
+  metrics_port: 9103

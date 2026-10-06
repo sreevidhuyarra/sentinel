@@ -79,6 +79,8 @@ class IDSParams(BaseModel):
     benign_fpr_target: float = Field(0.01, gt=0, lt=1)
     class_weight_power: float = Field(0.5, ge=0, le=1)
     max_class_weight: float = Field(1000, ge=1)
+    promotion_bootstrap: int = Field(2000, ge=100)
+    promotion_alpha: float = Field(0.05, gt=0, lt=1)
     severity_bands: list[float] = Field(default_factory=lambda: [0.6, 0.8, 0.95])
     tune_trials: int = 30
     tune_timeout_minutes: float = 60
@@ -240,6 +242,9 @@ class CopilotParams(BaseModel):
     related_window_minutes: int = Field(30, ge=1)
     # Development alert set (validation split) for tuning the copilot without touching test.
     dev_database: str = "sentinel_dev"
+    # Frozen test alert set for the copilot evaluation; the main database belongs to the
+    # live system (stream detector), whose alerts would change the evaluation's context.
+    eval_database: str = "sentinel_eval"
     dev_email_sample: dict[str, int] = Field(default_factory=lambda: {"phishing": 60, "fraud": 60})
     n_techniques: int = Field(8, ge=1)  # retrieved candidates the LLM may choose from
     n_cves: int = Field(3, ge=0)
@@ -252,6 +257,37 @@ class CopilotParams(BaseModel):
     )
 
 
+class StreamParams(BaseModel):
+    flows_topic: str = "net.flows"
+    alerts_topic: str = "alerts.new"
+    rate: float = Field(500.0, ge=0)  # replayer flows/s (0 = as fast as possible)
+    max_batch: int = Field(500, ge=1)  # detector micro-batch size
+    max_wait_s: float = Field(0.2, gt=0)  # ...or this long, whichever comes first
+    sample_rate: float = Field(0.05, ge=0, le=1)  # share of scored flows kept for drift/retraining
+    explain: bool = True  # SHAP / anomaly reasons for alerts
+    max_explain: int = Field(50, ge=1)  # campaigns (src, dst, family) explained per batch
+    review: bool = True  # store Module 4 review-flag flows as low-severity alerts
+    detector_metrics_port: int = 9101
+    replayer_metrics_port: int = 9102
+
+
+class MlopsParams(BaseModel):
+    interval_s: float = Field(60.0, gt=0)  # seconds between drift checks
+    window_minutes: float = Field(10.0, gt=0)  # live flows considered per check
+    min_window_flows: int = Field(200, ge=10)  # skip a window with fewer sampled flows
+    reference_rows: int = Field(5000, ge=100)  # benign training rows in the reference
+    method: str = "psi"
+    feature_threshold: float = Field(0.1, gt=0)  # a feature drifts at PSI >= this
+    drift_threshold: float = Field(0.2, gt=0, le=1)  # share of drifted features that triggers
+    trigger_window: Literal["all", "benign"] = "all"
+    consecutive: int = Field(2, ge=1)  # checks in a row above the threshold
+    cooldown_minutes: float = Field(60.0, ge=0)  # at most one retraining per cooldown
+    retrain_models: list[str] = Field(default_factory=lambda: ["lightgbm", "mlp"])
+    min_live_rows: int = Field(500, ge=0)  # labelled live flows needed to retrain
+    max_live_rows: int = Field(200_000, ge=1)
+    metrics_port: int = 9103
+
+
 class Params(BaseModel):
     seed: int = 42
     data: DataParams
@@ -262,6 +298,8 @@ class Params(BaseModel):
     phishing: PhishingParams = PhishingParams()
     adversarial: AdversarialParams = AdversarialParams()
     copilot: CopilotParams = CopilotParams()
+    stream: StreamParams = StreamParams()
+    mlops: MlopsParams = MlopsParams()
 
     def resolve(self, path: Path) -> Path:
         return path if path.is_absolute() else PROJECT_ROOT / path
@@ -277,6 +315,7 @@ class Settings(BaseSettings):
     postgres_ro_password: str = "sentinel_ro"
     postgres_ro_url: str = "postgresql+psycopg://sentinel_ro:sentinel_ro@localhost:5432/sentinel"
     mlflow_tracking_uri: str = "http://localhost:5000"
+    prometheus_url: str = "http://localhost:9090"
     kafka_bootstrap: str = "localhost:19092"
     gemini_api_key: str | None = None
     ollama_url: str = "http://localhost:11434"

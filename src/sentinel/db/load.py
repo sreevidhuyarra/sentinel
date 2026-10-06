@@ -93,38 +93,41 @@ def load_network(
         for m, f, r in zip(meta, feats, results, strict=True):
             if not r["is_attack"]:
                 continue
-            rows.append(
-                {
-                    "ts": m["ts"],
-                    "source": "network",
-                    "src_ip": m["src_ip"],
-                    "dst_ip": m["dst_ip"],
-                    "src_port": m["src_port"],
-                    "dst_port": m["dst_port"],
-                    "protocol": m["protocol"],
-                    "predicted_family": r["family"],
-                    "detector": r["detector"],
-                    "confidence": r["confidence"],
-                    "attack_score": r["attack_score"],
-                    "anomaly_score": r["anomaly_score"],
-                    "severity": r["severity"],
-                    "reasons": [
-                        {
-                            k: v
-                            for k, v in x.items()
-                            if k in ("feature", "value", "text", "contribution")
-                        }
-                        for x in r["reasons"]
-                    ],
-                    "evidence": None,
-                    "features": {k: None if v is None else float(v) for k, v in f.items()},
-                    "model_version": model_version,
-                }
-            )
+            rows.append(network_alert_row(m, f, r, model_version))
             truth.append({"label": m["label"], "family": m["family"]})
         n += len(_insert(engine, rows, truth))
         log.info("network alerts stored: %d", n)
     return n
+
+
+def network_alert_row(
+    meta: dict[str, Any], feats: dict[str, Any], result: dict[str, Any], model_version: str
+) -> dict[str, Any]:
+    """One `alerts` row from a scored flow (shared by the batch loader and the stream)."""
+    return {
+        "ts": meta["ts"],
+        "source": "network",
+        "src_ip": meta["src_ip"],
+        "dst_ip": meta["dst_ip"],
+        "src_port": meta["src_port"],
+        "dst_port": meta["dst_port"],
+        "protocol": meta["protocol"],
+        "predicted_family": result["family"],
+        "detector": result["detector"],
+        "confidence": result["confidence"],
+        "attack_score": result["attack_score"],
+        "anomaly_score": result["anomaly_score"],
+        "severity": result["severity"],
+        "reasons": [
+            {k: v for k, v in x.items() if k in ("feature", "value", "text", "contribution")}
+            for x in result["reasons"]
+        ],
+        "evidence": None,
+        "features": {
+            k: None if feats.get(k) is None else float(feats[k]) for k in FEATURES if k in feats
+        },
+        "model_version": model_version,
+    }
 
 
 def load_email(

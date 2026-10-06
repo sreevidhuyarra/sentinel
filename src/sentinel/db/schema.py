@@ -65,6 +65,53 @@ alert_truth = Table(
     Column("family", String(32), nullable=False),
 )
 
+# A random sample of scored flows (report section 10.3): the live feature window for drift
+# detection and, with the label that arrives later, the data for retraining.
+flows = Table(
+    "flows",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("ts", DateTime, nullable=False),
+    Column("src_ip", String(64)),
+    Column("dst_ip", String(64)),
+    Column("dst_port", Integer),
+    Column("features", JSONType, nullable=False),  # the model inputs as scored
+    Column("predicted_family", String(32)),
+    Column("label", String(64)),  # ground truth (replay: dataset label; live: analyst feedback)
+    Column("family", String(32)),
+    Column("alert_id", Integer, ForeignKey("alerts.id")),
+    Column("model_version", String(255)),
+    Column("scored_at", DateTime, nullable=False),
+    Index("flows_scored_at", "scored_at"),
+)
+
+# Module 6 MLOps: every drift check, and every retraining it triggered.
+drift_checks = Table(
+    "drift_checks",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("ts", DateTime, nullable=False),
+    Column("window", String(16), nullable=False),  # "all" or "benign" (flows the model passed)
+    Column("n", Integer, nullable=False),
+    Column("share", Float),  # share of features drifted
+    Column("drifted", JSONType),  # feature -> PSI, for drifted features
+    Column("triggered", Integer, nullable=False, server_default="0"),
+)
+
+retrain_runs = Table(
+    "retrain_runs",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("started", DateTime, nullable=False),
+    Column("finished", DateTime),
+    Column("reason", Text),
+    Column("n_extra", Integer),  # labelled live flows added to training
+    Column("status", String(16), nullable=False),  # running / promoted / staged / failed
+    Column("version", String(32)),  # registry version created
+    Column("metrics", JSONType),  # candidate vs production on the fixed test split
+    Column("error", Text),
+)
+
 reports = Table(
     "reports",
     metadata,

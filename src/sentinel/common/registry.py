@@ -46,7 +46,13 @@ def log_bundle(
 
 
 def promote(
-    model_name: str, version: str, metric: str, fpr_metric: str, fpr_budget: float
+    model_name: str,
+    version: str,
+    metric: str,
+    fpr_metric: str,
+    fpr_budget: float,
+    production_value: float | None = None,
+    gain_ci: tuple[float, float] | None = None,
 ) -> dict[str, Any]:
     """Alias `version` @staging; move @production to it only if it was trained and scored
     on the full data, keeps `fpr_metric` within `fpr_budget` and beats production on
@@ -54,6 +60,10 @@ def promote(
 
     Scores are only comparable on the same test set, so dev-sample runs are never
     promoted, and a production model not trained on full data is always replaced.
+    `production_value` is production re-scored on the candidate's test set, when that set
+    differs from the one production was logged on (retraining drops overlapping rows).
+    `gain_ci` is a bootstrap interval of the candidate's gain on those rows; when given, its
+    lower end must be above zero, so a win within noise is not promoted.
     """
     client = MlflowClient()
     client.set_registered_model_alias(model_name, "staging", version)
@@ -69,9 +79,12 @@ def promote(
         prod_run = client.get_run(prod.run_id)
         prod_full = prod_run.data.params.get("sample") == "full"
         prod_value = prod_run.data.metrics.get(metric, 0.0) if prod_full else -1.0
+        if production_value is not None and prod_full:
+            prod_value = production_value
     except mlflow.exceptions.MlflowException:
         prod, prod_value = None, -1.0
-    promoted = new_full and new_fpr <= fpr_budget and new_value > prod_value
+    significant = gain_ci is None or prod is None or prod_value < 0 or gain_ci[0] > 0
+    promoted = new_full and new_fpr <= fpr_budget and new_value > prod_value and significant
     if promoted:
         client.set_registered_model_alias(model_name, "production", version)
     decision = {
@@ -83,6 +96,7 @@ def promote(
         "candidate_fpr": new_fpr,
         "production_version": prod.version if prod else None,
         "production_value": prod_value if prod and prod_value >= 0 else None,
+        **({"gain_ci_low": gain_ci[0], "gain_ci_high": gain_ci[1]} if gain_ci else {}),
         "promoted": promoted,
     }
     log.info("promotion decision: %s", decision)

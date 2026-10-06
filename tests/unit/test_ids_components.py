@@ -6,7 +6,13 @@ from sentinel.ids.calibration import TemperatureBias
 from sentinel.ids.dataset import BENIGN, CLASSES
 from sentinel.ids.decision import attack_score, choose_threshold, decide, severity
 from sentinel.ids.explain import display_name, top_reasons
-from sentinel.ids.metrics import benign_fpr, evaluate, expected_calibration_error, macro_f1
+from sentinel.ids.metrics import (
+    benign_fpr,
+    evaluate,
+    expected_calibration_error,
+    macro_f1,
+    paired_bootstrap_f1,
+)
 from sentinel.ids.weights import class_weights
 
 K = len(CLASSES)
@@ -105,3 +111,34 @@ def test_top_reasons_positive_first() -> None:
     reasons = top_reasons(contrib, np.array([22, 3, 180]), ["dst_port", "a", "b"], 2, k=2)
     assert [r["feature"] for r in reasons] == ["b", "dst_port"]
     assert "increased the likelihood of" in reasons[0]["text"]
+
+
+def _noisy(y: np.ndarray, accuracy: float, rng: np.random.Generator) -> np.ndarray:
+    return np.where(rng.random(len(y)) < accuracy, y, rng.integers(0, len(CLASSES), len(y)))
+
+
+def test_paired_bootstrap_matches_row_resampling() -> None:
+    rng = np.random.default_rng(1)
+    y = rng.integers(0, len(CLASSES), 5000)
+    a, b = _noisy(y, 0.9, rng), _noisy(y, 0.85, rng)
+    boot = paired_bootstrap_f1(y, a, b, n_boot=1000)
+    assert boot["gain"] == pytest.approx(macro_f1(y, a) - macro_f1(y, b))
+    rows = []
+    for _ in range(1000):
+        i = rng.integers(0, len(y), len(y))
+        rows.append(macro_f1(y[i], a[i]) - macro_f1(y[i], b[i]))
+    low, high = np.quantile(rows, [0.025, 0.975])
+    assert boot["ci_low"] == pytest.approx(low, abs=0.004)
+    assert boot["ci_high"] == pytest.approx(high, abs=0.004)
+    assert boot["ci_low"] > 0
+
+
+def test_one_rare_flow_win_is_not_significant() -> None:
+    """Identical on a large class, one extra hit in a 22-flow class: within noise."""
+    y = np.array([BENIGN] * 20000 + [5] * 22)
+    production = y.copy()
+    production[-1] = BENIGN
+    candidate = y.copy()
+    boot = paired_bootstrap_f1(y, candidate, production)
+    assert boot["gain"] > 0.002
+    assert boot["ci_low"] <= 0 < boot["p_not_better"]

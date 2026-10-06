@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import time
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -9,23 +11,28 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 import polars as pl
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import Engine, insert, select
+from sqlalchemy import Engine, func, insert, select
 
 from sentinel.anomaly.bundle import AnomalyBundle
-from sentinel.common.config import get_settings
+from sentinel.common.config import PROJECT_ROOT, get_settings
 from sentinel.common.logging import get_logger
 from sentinel.copilot.graph import Copilot
 from sentinel.copilot.models import IncidentReport
 from sentinel.copilot.tools import AlertTools
+from sentinel.db.schema import alerts as alerts_table
 from sentinel.db.schema import reports as reports_table
-from sentinel.detection.fusion import Detector
+from sentinel.detection.fusion import Detector, load_review_delta
 from sentinel.ids.bundle import IDSBundle
 from sentinel.phishing.explain import explain
 from sentinel.phishing.export import PhishingOnnxModel
 from sentinel.phishing.text import extract_urls, model_input
 from sentinel.phishing.urls import UrlModel
+from sentinel.services.dashboard import router as dashboard_router
+from sentinel.services.metrics import instrument, record_report
 
 log = get_logger(__name__)
 
@@ -56,6 +63,8 @@ class FlowScore(BaseModel):
     severity: str | None
     probabilities: dict[str, float]
     reasons: list[Reason]
+    needs_review: bool = False  # passed as benign, but the ensemble's members disagree
+    member_gap: float | None = None
 
 
 class ScoreResponse(BaseModel):
@@ -111,10 +120,38 @@ def load_production_models() -> Models:
     )
     url, url_src = _load(s.url_model_uri, s.url_model_path, load_url_model, UrlModel.load, False)
     assert ids is not None and ids_src is not None
-    return Models(Detector(ids, anomaly), ids_src, an_src, phishing, ph_src, url, url_src)
+    review = load_review_delta(PROJECT_ROOT / "reports" / "adversarial" / "results.json")
+    detector = Detector(ids, anomaly, review_delta=review)
+    return Models(detector, ids_src, an_src, phishing, ph_src, url, url_src)
 
 
 MAX_EMAIL_URLS = 20
+FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
+WS_POLL_SECONDS = 1.0
+WS_MAX_BATCH = 200
+WS_COLUMNS = [
+    "id",
+    "ts",
+    "source",
+    "src_ip",
+    "dst_ip",
+    "dst_port",
+    "sender_domain",
+    "predicted_family",
+    "detector",
+    "confidence",
+    "severity",
+]
+
+
+def _db_engine(app: Any) -> Engine:
+    """The API's read/write engine (created on first use unless injected)."""
+    if app.state.db is None:
+        from sentinel.db.schema import make_engine
+
+        app.state.db = make_engine(get_settings().postgres_url)
+    engine: Engine = app.state.db
+    return engine
 
 
 class UrlReason(BaseModel):
@@ -218,7 +255,63 @@ def create_app(
         app.state.db = db
         yield
 
-    app = FastAPI(title="Sentinel API", version="0.4.0", lifespan=lifespan)
+    app = FastAPI(title="Sentinel API", version="0.5.0", lifespan=lifespan)
+    instrument(app)
+    app.include_router(dashboard_router)
+
+    @app.websocket("/ws/alerts")
+    async def ws_alerts(ws: WebSocket) -> None:
+        """Live alert feed: new rows of the alerts table, pushed as they are written.
+
+        Polls the database once a second for ids above the last one sent, so any writer
+        (stream detector, batch loader) shows up and the API needs no Kafka connection.
+        Query `since_id` to resume; by default the feed starts at the newest alert.
+        """
+        await ws.accept()
+        engine = _db_engine(ws.app)
+        since = ws.query_params.get("since_id")
+        with engine.connect() as conn:
+            last = (
+                int(since)
+                if since
+                else int(conn.execute(select(func.max(alerts_table.c.id))).scalar() or 0)
+            )
+        try:
+            while True:
+                with engine.connect() as conn:
+                    rows = conn.execute(
+                        select(*[alerts_table.c[c] for c in WS_COLUMNS])
+                        .where(alerts_table.c.id > last)
+                        .order_by(alerts_table.c.id)
+                        .limit(WS_MAX_BATCH)
+                    ).all()
+                if rows:
+                    last = int(rows[-1][0])
+                    await ws.send_json(
+                        {
+                            "alerts": [
+                                jsonable_encoder(dict(zip(WS_COLUMNS, r, strict=True)))
+                                for r in rows
+                            ]
+                        }
+                    )
+                await asyncio.sleep(WS_POLL_SECONDS)
+        except WebSocketDisconnect:
+            return
+
+    @app.get("/", include_in_schema=False)
+    def root() -> RedirectResponse:
+        return RedirectResponse("/app/" if FRONTEND_DIST.exists() else "/docs")
+
+    @app.get("/app/{path:path}", include_in_schema=False)
+    def frontend(path: str = "") -> FileResponse:
+        """The built dashboard (frontend/dist); client routes fall back to index.html."""
+        if not FRONTEND_DIST.exists():
+            raise HTTPException(404, detail="dashboard not built: cd frontend && npm run build")
+        target = (FRONTEND_DIST / path).resolve()
+        if path and target.is_file() and FRONTEND_DIST.resolve() in target.parents:
+            return FileResponse(target)
+        return FileResponse(FRONTEND_DIST / "index.html")
 
     @app.get("/health")
     def health(request: Request) -> dict[str, Any]:
@@ -323,12 +416,7 @@ def create_app(
         )
 
     def _db(request: Request) -> Engine:
-        if request.app.state.db is None:
-            from sentinel.db.schema import make_engine
-
-            request.app.state.db = make_engine(get_settings().postgres_url)
-        engine: Engine = request.app.state.db
-        return engine
+        return _db_engine(request.app)
 
     def _copilot(request: Request) -> Copilot:
         if request.app.state.copilot is None:
@@ -372,10 +460,12 @@ def create_app(
         """Run the investigation graph (seconds with Gemini, minutes on the local model)."""
         from sentinel.copilot.graph import AlertNotFoundError
 
+        t0 = time.perf_counter()
         try:
             report, trace = _copilot(request).investigate(alert_id)
         except AlertNotFoundError:
             raise HTTPException(404, detail="alert not found") from None
+        record_report(report, time.perf_counter() - t0)
         with _db(request).begin() as conn:
             conn.execute(
                 insert(reports_table).values(

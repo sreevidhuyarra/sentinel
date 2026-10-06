@@ -1,0 +1,14 @@
+.git
+.venv
+.dvc/cache
+data/
+models/
+mlruns/
+reports/
+kaggle/
+notebooks/
+frontend/node_modules
+frontend/dist
+**/__pycache__
+.env
+*.log

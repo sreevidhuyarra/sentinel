@@ -57,7 +57,117 @@ services:
         rpk topic create net.flows alerts.new -p 3 -X brokers=redpanda:9092 || true
     restart: "no"
 
+  # Module 6 observability. Sentinel's own services run on the host (or later in compose)
+  # and are scraped through host.docker.internal; see monitoring/prometheus.yml.
+  prometheus:
+    image: prom/prometheus:${PROMETHEUS_VERSION:-v3.5.0}
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    ports: ["9090:9090"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      interval: 10s
+      retries: 10
+
+  grafana:
+    image: grafana/grafana:${GRAFANA_VERSION:-12.1.1}
+    depends_on:
+      prometheus: {condition: service_healthy}
+    ports: ["3000:3000"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-sentinel}
+      GF_SECURITY_ALLOW_EMBEDDING: "true"  # the dashboard's Model Health page embeds panels
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/sentinel.json
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana:/var/lib/grafana
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health | grep -q ok"]
+      interval: 10s
+      retries: 10
+
+  # ---- Sentinel itself (profile "app"): docker compose --profile app up -d --build ----------
+  # One image, three long-running services. Models and data are the DVC-tracked folders of
+  # this repo, mounted read-only (the drift job writes retraining candidates and reports).
+  api:
+    profiles: ["app"]
+    build: .
+    image: sentinel:latest
+    command: ["serve", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["8000:8000"]
+    env_file: [{path: .env, required: false}]
+    environment: &sentinel-env
+      POSTGRES_URL: postgresql+psycopg://sentinel:sentinel@postgres:5432/sentinel
+      POSTGRES_RO_URL: postgresql+psycopg://sentinel_ro:sentinel_ro@postgres:5432/sentinel
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      KAFKA_BOOTSTRAP: redpanda:9092
+      PROMETHEUS_URL: http://prometheus:9090
+      OLLAMA_URL: http://host.docker.internal:11434
+      MLFLOW_DISABLE_AGENT_HINT: "1"
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes:
+      - ./models:/app/models:ro
+      - ./data:/app/data
+      - ./reports:/app/reports:ro
+    depends_on: &sentinel-deps
+      postgres: {condition: service_healthy}
+      mlflow: {condition: service_healthy}
+      redpanda: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      start_period: 180s
+      retries: 10
+
+  detector:
+    profiles: ["app"]
+    image: sentinel:latest
+    command: ["stream", "detect"]
+    env_file: [{path: .env, required: false}]
+    environment: *sentinel-env
+    volumes:
+      - ./models:/app/models:ro
+      - ./data:/app/data:ro
+    depends_on:
+      <<: *sentinel-deps
+      api: {condition: service_started}  # builds the image first
+
+  drift:
+    profiles: ["app"]
+    image: sentinel:latest
+    command: ["mlops", "drift-watch"]
+    env_file: [{path: .env, required: false}]
+    environment: *sentinel-env
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data:ro
+      - ./reports:/app/reports
+    depends_on:
+      <<: *sentinel-deps
+      api: {condition: service_started}
+
+  # docker compose --profile app run --rm replayer stream replay --days friday
+  replayer:
+    profiles: ["demo"]
+    image: sentinel:latest
+    command: ["stream", "replay", "--days", "monday"]
+    environment: *sentinel-env
+    volumes:
+      - ./models:/app/models:ro
+      - ./data:/app/data:ro
+    depends_on: *sentinel-deps
+
 volumes:
   pgdata:
   mlflow:
   redpanda:
+  prometheus:
+  grafana:

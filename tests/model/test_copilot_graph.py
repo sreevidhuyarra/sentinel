@@ -302,3 +302,40 @@ def test_judge_prompt_is_redacted_and_quota_stops_the_run(
     assert "192.168.10.50" not in sent and "172.16.0.1" not in sent and "[ip-internal-1]" in sent
     with pytest.raises(QuotaError):
         judge_faithfulness(ScriptedLLM([QuotaError("day", daily=True)]), "ctx", rep)
+
+
+def test_api_metrics_and_live_alert_websocket(db: dict[str, Any], retriever: Retriever) -> None:
+    from fastapi.testclient import TestClient
+
+    from sentinel.services.api import create_app
+
+    writer = make_engine(f"sqlite:///{db['path'].as_posix()}")
+    app = create_app(bundle=object(), copilot=_copilot(db, retriever, None), db=writer)  # type: ignore[arg-type]
+    with TestClient(app) as c:
+        c.get("/alerts", params={"limit": 2})
+        body = c.get("/metrics").text
+        assert (
+            'sentinel_http_request_seconds_count{method="GET",route="/alerts",status="200"}' in body
+        )
+        with c.websocket_connect("/ws/alerts?since_id=0") as ws:
+            first = ws.receive_json()["alerts"]
+            assert [a["id"] for a in first] == db["ids"]  # everything after since_id, in order
+            with writer.begin() as conn:
+                conn.execute(
+                    insert(alerts).values(
+                        ts=T0,
+                        source="network",
+                        src_ip="10.0.0.9",
+                        dst_ip="192.168.10.50",
+                        dst_port=80,
+                        predicted_family="DoS",
+                        severity="High",
+                        model_version="test",
+                    )
+                )
+            new = ws.receive_json()["alerts"]
+            assert (
+                len(new) == 1
+                and new[0]["predicted_family"] == "DoS"
+                and new[0]["id"] > db["ids"][-1]
+            )

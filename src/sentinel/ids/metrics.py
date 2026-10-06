@@ -25,6 +25,51 @@ def macro_f1(y: np.ndarray, pred: np.ndarray) -> float:
     return float(f1.mean())
 
 
+def paired_bootstrap_f1(
+    y: np.ndarray,
+    pred_a: np.ndarray,
+    pred_b: np.ndarray,
+    n_boot: int = 2000,
+    alpha: float = 0.05,
+    seed: int = 0,
+) -> dict[str, float]:
+    """Paired bootstrap of macro-F1(a) - macro-F1(b) over the same rows.
+
+    Resampling rows only changes how often each (true, pred_a, pred_b) cell occurs, so each
+    resample is one multinomial draw over at most k^3 cells: exact, and milliseconds on the
+    full test split. Returns the observed gap, its (1 - alpha) percentile interval and the
+    share of resamples where `a` is not better.
+    """
+    k = len(CLASSES)
+    code = (y * k + pred_a) * k + pred_b
+    counts = np.bincount(code, minlength=k**3)
+    cells = np.flatnonzero(counts)
+    draws = (
+        np.random.default_rng(seed)
+        .multinomial(len(y), counts[cells] / len(y), size=n_boot)
+        .astype(np.float64)
+    )
+
+    def f1(cm_index: np.ndarray) -> np.ndarray:
+        flat_cm = np.zeros((n_boot, k * k))
+        np.add.at(flat_cm.T, cm_index, draws.T)
+        cm = flat_cm.reshape(n_boot, k, k)
+        tp = np.diagonal(cm, axis1=1, axis2=2)
+        denom = cm.sum(axis=1) + cm.sum(axis=2)
+        out = np.divide(2 * tp, denom, out=np.zeros_like(tp), where=denom > 0)
+        return np.asarray(out.mean(axis=1))
+
+    true = cells // (k * k)
+    diff = f1(true * k + (cells // k) % k) - f1(true * k + cells % k)
+    low, high = np.quantile(diff, [alpha / 2, 1 - alpha / 2])
+    return {
+        "gain": macro_f1(y, pred_a) - macro_f1(y, pred_b),
+        "ci_low": float(low),
+        "ci_high": float(high),
+        "p_not_better": float((diff <= 0).mean()),
+    }
+
+
 def benign_fpr(y: np.ndarray, pred: np.ndarray) -> float:
     benign = y == BENIGN
     return float((pred[benign] != BENIGN).mean()) if benign.any() else 0.0

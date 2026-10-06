@@ -3,6 +3,9 @@ name: CI
 on:
   push:
   pull_request:
+  # Nightly: the full fast suite on a clean runner, plus a fresh image build without cache.
+  schedule:
+    - cron: "17 2 * * *"
 
 jobs:
   check:
@@ -24,8 +27,44 @@ jobs:
       - name: Test
         run: uv run pytest -m "not slow" --cov=sentinel --cov-report=term-missing
 
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build  # tsc type-check + vite build
+
   compose:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: docker compose config --quiet
+      - run: docker compose --profile app --profile demo config --quiet
+
+  image:
+    needs: [check, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: sentinel:ci
+          load: true
+          cache-from: ${{ github.event_name == 'schedule' && '' || 'type=gha' }}
+          cache-to: type=gha,mode=max
+      - name: Smoke-test the image
+        run: |
+          docker run --rm sentinel:ci --help
+          docker run --rm --entrypoint python sentinel:ci -c "import sentinel.services.api, sentinel.stream.detector, sentinel.mlops.watch; print('imports ok')"

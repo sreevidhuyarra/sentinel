@@ -35,3 +35,8 @@ Thumbs.db
 node_modules/
 dist/
 reports/copilot/*.log
+reports/*.log
+reports/demo/
+# Retraining candidates and their reports (logged to MLflow; overwritten every run)
+models/ids_candidate/
+reports/ids_retrain/

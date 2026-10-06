@@ -37,11 +37,16 @@ class IDSBundle:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def proba(self, X: np.ndarray) -> np.ndarray:
+        return self._proba(X)[0]
+
+    def _proba(self, X: np.ndarray) -> tuple[np.ndarray, np.ndarray | None]:
+        """Ensemble probabilities, and the members' attack-probability gap (if two members)."""
         p = self.lgbm_calibration.apply(self.lgbm.logits(X))
         if self.mlp is not None and self.mlp_calibration is not None and self.lgbm_weight < 1:
             p_mlp = self.mlp_calibration.apply(self.mlp.logits(X))
-            p = self.lgbm_weight * p + (1 - self.lgbm_weight) * p_mlp
-        return p
+            gap = np.abs((1 - p[:, BENIGN]) - (1 - p_mlp[:, BENIGN]))
+            return self.lgbm_weight * p + (1 - self.lgbm_weight) * p_mlp, gap
+        return p, None
 
     def predict(
         self, df: pl.DataFrame, explain: bool = True, top_k: int = 5
@@ -50,7 +55,7 @@ class IDSBundle:
         if df.height == 0:
             return []
         X = self.spec.to_numpy(df)
-        proba = self.proba(X)
+        proba, gap = self._proba(X)
         pred = decide(proba, self.threshold)
         score = attack_score(proba)
         sev = severity(score, self.severity_bands)
@@ -72,6 +77,8 @@ class IDSBundle:
                 "severity": sev[i] if pred[i] != BENIGN else None,
                 "probabilities": {c: float(proba[i, k]) for k, c in enumerate(CLASSES)},
                 "reasons": reasons.get(i, []),
+                # |P_lgbm(attack) - P_mlp(attack)|: the review flag's disagreement signal.
+                "member_gap": None if gap is None else float(gap[i]),
             }
             for i in range(df.height)
         ]

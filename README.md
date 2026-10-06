@@ -8,9 +8,9 @@ alert, and hands alerts to an LLM copilot that writes cited incident reports. Mo
 attacked and hardened, and the lifecycle (data versioning, tracking, drift, retraining)
 is automated.
 
-> Status: **Modules 1–2 complete** — data foundation, supervised intrusion detection,
-> anomaly detection.
-> Modules are built one at a time; see [CLAUDE.md](CLAUDE.md) for the checklist.
+> Status: **all six modules built**: data foundation, supervised intrusion detection, anomaly
+> detection, phishing, adversarial robustness, SOC copilot, and streaming + MLOps + dashboard.
+> See [CLAUDE.md](CLAUDE.md) for the checklist.
 
 ## Getting started
 
@@ -51,6 +51,10 @@ format; the test suite and CI use it.
 | Investigate an alert | `uv run sentinel copilot investigate <id> [--provider ollama]` |
 | Copilot evaluation / red team | `uv run sentinel copilot evaluate` (resumable) · `uv run sentinel copilot redteam` |
 | Serve the API | `uv run sentinel serve` |
+| Stream: detector / replay | `uv run sentinel stream detect` · `uv run sentinel stream replay --days friday --rate 500` |
+| Drift check / watcher / retrain | `uv run sentinel mlops drift-check` · `mlops drift-watch` · `mlops retrain` |
+| Dashboard (dev server) | `cd frontend && npm ci && npm run dev` (http://localhost:5173/app/) |
+| Everything in containers | `docker compose --profile app up -d --build` |
 | Infra up / down | `docker compose up -d --wait` · `docker compose down` |
 
 On Linux/macOS/WSL, the `Makefile` wraps the common ones (`make check`, `make data`, `make up`).
@@ -655,6 +659,97 @@ uv run sentinel copilot evaluate            # gold set -> reports/copilot/result
 uv run sentinel copilot redteam             # attack success with and without the guard
 ```
 
+## Module 6: streaming, MLOps and the dashboard
+
+Module 6 joins the modules into one running system:
+
+```
+replayer --net.flows--> stream detector --alerts.new-->  API (REST + WebSocket) --> React dashboard
+(test-split flows,      (micro-batches: fused            /metrics, /stats, /mlops
+ real timestamps)        verdict, SHAP once per                |
+                         campaign, review flag)           Prometheus --> Grafana
+                             |
+                         Postgres: alerts + 5% flow sample --> drift watcher (Evidently PSI)
+                                                                 --> Prefect retrain flow --> MLflow
+```
+
+| Piece | What it does |
+|---|---|
+| Replayer | `sentinel stream replay --days friday --rate 500` publishes flows to Redpanda (`net.flows`) at a set rate, in time order. Each message carries the flow's ground truth separately from its features, so the detector never sees it. |
+| Stream detector | `sentinel stream detect` consumes micro-batches (up to 500 flows or 0.2 s) and scores them with the fused Module 1+2 detector. It stores alerts, publishes them to `alerts.new`, and commits Kafka offsets only after the database write. SHAP reasons are computed once per campaign (source, target and family); later members point at the explained alert. |
+| Review flag | The Module 4 defense is now served. A flow passed as benign whose LightGBM and MLP members disagree by more than the validation-chosen gap becomes a Low "Needs review" alert, in the stream and in `POST /score/flows` (`needs_review`, `member_gap`). |
+| Drift watcher | `sentinel mlops drift-watch` compares the last 10 minutes of sampled live flows with benign training flows: Evidently PSI per feature, drifted share = features above 0.1. It checks two windows: all flows, and flows the detector called benign. Two consecutive checks above 20% start a retrain (60 min cooldown). |
+| Retraining | Prefect flow `sentinel-retrain` (`sentinel mlops retrain`): labelled live flows join the training split; LightGBM + MLP are retrained, registered `@staging`, and promoted to `@production` only if they beat production on test macro-F1 within the false-alarm budget. Every run is logged in the `retrain_runs` table. |
+| Metrics | Prometheus scrapes the detector (:9101), drift watcher (:9103) and API (`/metrics`): throughput, batch and scoring latency, end-to-end latency, consumer lag, alerts by family and severity, drift share, retrain runs, copilot reports, LLM tokens and guard flags. Grafana (:3000) provisions a 23-panel dashboard (`monitoring/build_dashboard.py`). |
+| Dashboard | React 19 + TypeScript + Vite + Tailwind + Recharts, served by the API at `/app/`. Pages: overview (live alert feed over WebSocket), alerts with filters, alert detail with SHAP reasons and related alerts, copilot report (Markdown export), phishing check, model health (drift, retrains, embedded Grafana) and robustness (run a pad-and-delay evasion test live). Each family keeps one colour, validated for colour-blind separation in light and dark mode. |
+
+### Results
+
+**Throughput.** On the laptop CPU, scoring alone sustained about 1,440 flows/s,
+consuming as fast as the replayer could publish. Scoring a full 500-flow batch takes
+about 46–49 ms (p95 48.6 ms, target under 50 ms). Explaining every alert
+with SHAP cut throughput to about 220 flows/s. Explaining once per campaign restored it.
+
+**Drift demo** (`scripts/drift_demo.ps1`: Monday's test flows, then Friday's, at 500 flows/s):
+
+| Phase | Drifted share (all flows) | Drifted share (benign window) |
+|---|---|---|
+| Monday (benign) | 0–1% | 0–1% |
+| Friday (DDoS, PortScan, Bot) | 8.5% → 20.7% → 31.7% | 0% |
+
+Two consecutive checks at 20.7% started a retrain. The cooldown stopped a second trigger at
+31.7%. The benign window stayed at 0% throughout. What drifted was the attack mix (packet sizes, flag
+counts, destination ports), not normal traffic, so this alarm means "the traffic now looks
+different from what the model was trained on", not "the model is wrong". Watching the benign
+window separately separates the two. During the demo, which shared the CPU with a retrain, the live
+end-to-end latency (replay to stored alert) was p50 0.42 s and p95 1.8 s.
+
+**Retraining, and a leak it exposed.** The first drift-triggered run trained on 7,870
+labelled live flows and reported test macro-F1 0.9957 → 0.9988, so it was promoted. That
+number was invalid: the replayer streams the **test** split, so the candidate was scored on the
+flows it had just trained on. The fix: before retraining, validation and test rows identical
+to a live flow are dropped (here 7,879 test rows and 6 validation rows). Production is then
+re-scored on that same reduced test set, and the promotion decision compares the two
+(`sentinel.ids.dataset.without_overlap`, `production_test_macro_f1` in MLflow). The leaked
+v4 was rolled back.
+
+The corrected re-run scored 0.9988 against production's 0.9957 on the same 360,061 test flows.
+Almost all of that gap is one WebAttack flow: 21 of 22 caught before, 22 of 22 after.
+Macro-F1 averages over eight families, so one flow in a 22-flow family moves it by about 0.003.
+
+That raised the question of whether "beats production" means anything at this level. So
+promotion now also needs a **paired bootstrap** over the test flows
+(`ids.metrics.paired_bootstrap_f1`, 2,000 resamples): the 95% interval of the candidate's
+macro-F1 gain must lie above zero. Each resample is a multinomial draw over the
+(true, candidate, production) cells, so this is exact and takes milliseconds. On this candidate
+the gain is 0.0031, with a 95% interval of 0.0001 to 0.0104, and no resample favours
+production. The gain is tiny but consistent. Besides the WebAttack flow, the candidate is
+slightly better on PortScan (F1 0.9982 → 0.9990; 899 live PortScan flows were in its training
+data), BruteForce, DoS and benign; DDoS was unchanged. The bootstrap covers
+test-sample noise only, not variation between training seeds.
+
+The candidate passed, but production stays on **v3**. The candidate learned from 7,870
+test-split flows, and every later evaluation in this repo scores the full test split: the
+copilot's alert database, the robustness page and the replay demo. Deploying it would quietly
+inflate all of them. In a real deployment, live traffic is new and this conflict does not arise.
+
+Run it:
+
+```bash
+docker compose up -d --wait                        # Postgres, MLflow, Redpanda, Prometheus, Grafana
+uv run sentinel serve                              # API + dashboard: http://127.0.0.1:8000/app/
+uv run sentinel stream detect                      # in a second terminal
+uv run sentinel mlops drift-watch                  # in a third
+uv run sentinel stream replay --days monday,friday --rate 500
+```
+
+On Windows, `powershell -ExecutionPolicy Bypass -File scripts\drift_demo.ps1` starts the detector
+and drift watcher and replays both days. To run everything in containers instead:
+`docker compose --profile app up -d --build`. The demo replayer:
+`docker compose --profile app --profile demo run --rm replayer stream replay --days friday`.
+The dashboard is at http://localhost:8000/app/, Grafana at http://localhost:3000 and
+Prometheus at http://localhost:9090.
+
 ## API
 
 ```bash
@@ -678,6 +773,12 @@ alerts, and `GET /alerts/{id}` returns one with its detector reasons and evidenc
 seconds with Gemini and about a minute on the local model. `GET /reports/{report_id}` returns
 a stored report.
 
+Dashboard endpoints: `WS /ws/alerts` pushes new alerts; `GET /stats/overview`,
+`/stats/throughput`, `/alerts/{id}/related`, `/mlops/drift`, `/mlops/retrains` and
+`/robustness/study` feed the pages; `POST /robustness/run` runs a pad-and-delay evasion test
+on test-split attack flows. `GET /metrics` is the Prometheus endpoint, and `/app/` serves the
+built dashboard (`cd frontend && npm ci && npm run build`).
+
 ## Model registry
 
 Each training run logs parameters, metrics, figures and the model bundle to MLflow
@@ -700,11 +801,18 @@ src/sentinel/
               models, gold, evaluate, redteam, report, service
   llm/        provider interface: gemini, ollama, cache + throttle + fallback, redact, factory
   db/         alerts / alert_truth / reports schema and the alert loader
-  detection/  fusion.py: supervised + anomaly -> one verdict ("Unknown anomaly")
-  services/   api.py (FastAPI: scoring, alerts, copilot)
+  detection/  fusion.py: supervised + anomaly -> one verdict ("Unknown anomaly", review flag)
+  stream/     Module 6: replayer, stream detector, messages, Prometheus metrics
+  mlops/      Module 6: drift (Evidently), watch (trigger), retrain (Prefect flow)
+  services/   api.py (FastAPI: scoring, alerts, copilot, WebSocket, dashboard), dashboard.py, metrics.py
   cli.py      `sentinel` command; each pipeline subcommand is a DVC stage
 tests/        unit/, data/ (pipeline on synthetic data), model/ (training, registry, API)
 reports/      data_summary.json, ids/ (results, model card, figures, studies)
 dvc.yaml      reproducible pipeline; params.yaml holds every tunable
-docker-compose.yml   Postgres, MLflow, Redpanda (+ topic init)
+frontend/     React dashboard (Vite; built into frontend/dist, served at /app/)
+monitoring/   prometheus.yml, Grafana provisioning and dashboard (build_dashboard.py)
+scripts/      drift_demo.ps1
+docker-compose.yml   Postgres, MLflow, Redpanda, Prometheus, Grafana; profiles "app" (api,
+                     detector, drift) and "demo" (replayer)
+Dockerfile    one image for every service (dashboard built in a Node stage)
 ```

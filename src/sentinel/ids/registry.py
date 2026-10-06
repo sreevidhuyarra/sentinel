@@ -32,8 +32,21 @@ def log_bundle(bundle_dir: Path, register: bool = True) -> str | None:
     return registry.log_bundle(IDSPyfunc(), bundle_dir, MODEL_NAME, register)
 
 
-def promote(version: str, fpr_budget: float) -> dict[str, Any]:
-    return registry.promote(MODEL_NAME, version, PROMOTION_METRIC, "test_benign_fpr", fpr_budget)
+def promote(
+    version: str,
+    fpr_budget: float,
+    production_value: float | None = None,
+    gain_ci: tuple[float, float] | None = None,
+) -> dict[str, Any]:
+    return registry.promote(
+        MODEL_NAME,
+        version,
+        PROMOTION_METRIC,
+        "test_benign_fpr",
+        fpr_budget,
+        production_value,
+        gain_ci,
+    )
 
 
 def load_bundle(uri: str = f"models:/{MODEL_NAME}@production") -> IDSBundle:
