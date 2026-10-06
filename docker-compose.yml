@@ -1,5 +1,5 @@
-# Week-1 infrastructure. Later modules add detector, api, copilot, prometheus,
-# grafana, drift-job and frontend services to this file.
+# Host ports bind to 127.0.0.1 only: nothing here has a login except the API (when
+# SENTINEL_API_KEY is set). Remove the prefix to expose a service on the network.
 name: sentinel
 
 services:
@@ -9,7 +9,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-sentinel}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sentinel}
       POSTGRES_DB: ${POSTGRES_DB:-sentinel}
-    ports: ["5432:5432"]
+    ports: ["127.0.0.1:5432:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
@@ -23,7 +23,7 @@ services:
       --backend-store-uri sqlite:////mlflow/mlflow.db
       --artifacts-destination /mlflow/artifacts
       --serve-artifacts
-    ports: ["5000:5000"]
+    ports: ["127.0.0.1:5000:5000"]
     volumes: [mlflow:/mlflow]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
@@ -40,7 +40,7 @@ services:
       - --smp=1
       - --memory=1G
       - --mode=dev-container
-    ports: ["19092:19092"]
+    ports: ["127.0.0.1:19092:19092"]
     volumes: [redpanda:/var/lib/redpanda/data]
     healthcheck:
       test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
@@ -64,7 +64,7 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=15d
-    ports: ["9090:9090"]
+    ports: ["127.0.0.1:9090:9090"]
     extra_hosts: ["host.docker.internal:host-gateway"]
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -78,7 +78,7 @@ services:
     image: grafana/grafana:${GRAFANA_VERSION:-12.1.1}
     depends_on:
       prometheus: {condition: service_healthy}
-    ports: ["3000:3000"]
+    ports: ["127.0.0.1:3000:3000"]
     environment:
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
@@ -102,7 +102,7 @@ services:
     build: .
     image: sentinel:latest
     command: ["serve", "--host", "0.0.0.0", "--port", "8000"]
-    ports: ["8000:8000"]
+    ports: ["127.0.0.1:8000:8000"]
     env_file: [{path: .env, required: false}]
     environment: &sentinel-env
       POSTGRES_URL: postgresql+psycopg://sentinel:sentinel@postgres:5432/sentinel

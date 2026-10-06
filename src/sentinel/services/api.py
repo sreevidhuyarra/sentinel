@@ -31,6 +31,7 @@ from sentinel.phishing.explain import explain
 from sentinel.phishing.export import PhishingOnnxModel
 from sentinel.phishing.text import extract_urls, model_input
 from sentinel.phishing.urls import UrlModel
+from sentinel.services.auth import authorized, protect
 from sentinel.services.dashboard import router as dashboard_router
 from sentinel.services.metrics import instrument, record_report
 
@@ -85,13 +86,26 @@ def _load[T](
         import mlflow
 
         mlflow.set_tracking_uri(get_settings().mlflow_tracking_uri)
-        return from_registry(uri), uri
+        return from_registry(uri), _with_version(uri)
     except Exception as exc:  # registry unreachable or alias missing
         log.warning("registry load of %s failed (%s); trying %s", uri, exc, path)
     if path.exists() or required:
         return from_dir(path), str(path)
     log.warning("no model at %s; the endpoints that need it are disabled", path)
     return None, None
+
+
+def _with_version(uri: str) -> str:
+    """`models:/name@alias` -> `models:/name@alias (v3)`, so the UI shows what is served."""
+    name, _, alias = uri.removeprefix("models:/").partition("@")
+    if not alias:
+        return uri
+    try:
+        from mlflow.tracking import MlflowClient
+
+        return f"{uri} (v{MlflowClient().get_model_version_by_alias(name, alias).version})"
+    except Exception:  # the model loaded, so this is cosmetic
+        return uri
 
 
 class Models(NamedTuple):
@@ -145,11 +159,17 @@ WS_COLUMNS = [
 
 
 def _db_engine(app: Any) -> Engine:
-    """The API's read/write engine (created on first use unless injected)."""
-    if app.state.db is None:
-        from sentinel.db.schema import make_engine
+    """The API's read/write engine (created on first use unless injected).
 
-        app.state.db = make_engine(get_settings().postgres_url)
+    Creating it also brings the schema up to date (idempotent), so columns added in a later
+    release exist before the dashboard selects them, whichever service started first.
+    """
+    if app.state.db is None:
+        from sentinel.db.schema import init_db, make_engine
+
+        engine_ = make_engine(get_settings().postgres_url)
+        init_db(engine_)
+        app.state.db = engine_
     engine: Engine = app.state.db
     return engine
 
@@ -231,7 +251,10 @@ def create_app(
     url_source: str | None = None,
     copilot: Copilot | None = None,
     db: Engine | None = None,
+    api_key: str | None = None,
 ) -> FastAPI:
+    """`api_key` turns on HTTP Basic auth (see services.auth); serve passes SENTINEL_API_KEY."""
+
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if bundle is None:
@@ -257,6 +280,8 @@ def create_app(
 
     app = FastAPI(title="Sentinel API", version="0.5.0", lifespan=lifespan)
     instrument(app)
+    if api_key:
+        protect(app, api_key)
     app.include_router(dashboard_router)
 
     @app.websocket("/ws/alerts")
@@ -267,6 +292,9 @@ def create_app(
         (stream detector, batch loader) shows up and the API needs no Kafka connection.
         Query `since_id` to resume; by default the feed starts at the newest alert.
         """
+        if api_key and not authorized(ws.headers.get("authorization"), api_key):
+            await ws.close(code=1008)  # policy violation: the HTTP middleware skips WebSockets
+            return
         await ws.accept()
         engine = _db_engine(ws.app)
         since = ws.query_params.get("since_id")

@@ -143,8 +143,9 @@ def train(
     """Train, evaluate on the fixed test split, register, promote only if better.
 
     `extra_train` (labelled live flows) is appended to the training split only (retraining);
-    validation and test rows identical to a live flow are dropped first, and `baseline` (the
-    production bundle) is re-scored on that reduced test set for the promotion decision.
+    validation and test rows identical to a live flow are dropped first. `baseline` (by
+    default the registry's @production bundle) is re-scored on the same test rows, and the
+    candidate is promoted only if a paired bootstrap puts its macro-F1 gain above zero.
     """
     if "lightgbm" not in models:
         raise ValueError("lightgbm is required: it is the production model and the explainer")
@@ -262,8 +263,11 @@ def train(
         mlflow.log_artifacts(str(reports_dir), artifact_path="reports")
         version = log_bundle(out_dir, register=register)
         production_value, gain_ci = None, None
-        if baseline is not None:
-            base_proba = baseline.proba(s.test.X)
+        if baseline is None and version is not None:
+            baseline = _production_baseline()
+        base_X = _baseline_inputs(baseline, s) if baseline is not None else None
+        if baseline is not None and base_X is not None:
+            base_proba = baseline.proba(base_X)
             base_pred = decide(base_proba, baseline.threshold)
             production_value = float(evaluate(s.test.y, base_pred, base_proba)["macro_f1"])
             boot = paired_bootstrap_f1(
@@ -295,6 +299,26 @@ def train(
         )
 
     return {"models": results, "registry": decision}
+
+
+def _production_baseline() -> IDSBundle | None:
+    """The current @production bundle, to re-score on this run's test rows for promotion."""
+    from sentinel.ids.registry import load_bundle
+
+    try:
+        return load_bundle()
+    except Exception as exc:  # no production version yet, or the registry is unreachable
+        log.info("no production model to compare against (%s)", type(exc).__name__)
+        return None
+
+
+def _baseline_inputs(baseline: IDSBundle, s: Splits) -> np.ndarray | None:
+    """Test rows through the baseline's own feature spec (it may predate a data rebuild)."""
+    try:
+        return baseline.spec.to_numpy(s.test.frame)
+    except (KeyError, pl.exceptions.ColumnNotFoundError) as exc:
+        log.warning("production model needs other features (%s); comparing logged scores", exc)
+        return None
 
 
 def _bundle_latency(bundle: IDSBundle, X: np.ndarray) -> float:

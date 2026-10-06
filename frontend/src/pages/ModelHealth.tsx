@@ -5,21 +5,31 @@ import { api, fmtTime, pct } from "../lib/api";
 
 const GRAFANA = `${location.protocol}//${location.hostname}:3000`;
 
+// "models:/ids-classifier@production (v3)" -> "v3"; a local fallback directory -> "local".
+function servedVersion(source: unknown): string {
+  if (source == null) return "—";
+  const v = /\(v(\d+)\)$/.exec(String(source));
+  return v ? `v${v[1]}` : String(source).startsWith("models:/") ? "registry" : "local";
+}
+
 export default function ModelHealth() {
   const models = useQuery({ queryKey: ["models"], queryFn: api.models });
   const drift = useQuery({ queryKey: ["drift"], queryFn: api.drift, refetchInterval: 15000 });
   const runs = useQuery({ queryKey: ["retrains"], queryFn: api.retrains, refetchInterval: 15000 });
   const last = drift.data?.checks.filter((c) => c.window === drift.data?.trigger_window && c.share != null).at(-1);
+  const perf = drift.data?.checks.filter((c) => c.attack_recall != null || c.benign_fpr != null).at(-1);
   const m = models.data as Record<string, any> | undefined;
 
   return (
     <div className="space-y-4">
       <h1 className="text-lg font-semibold">Model health</h1>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Stat label="Drift share (latest)" value={last ? pct(last.share) : "—"} hint={drift.data ? `retrain at ≥ ${pct(drift.data.threshold, 0)} (${drift.data.trigger_window} flows)` : undefined} />
         <Stat label="Drift window" value={last ? `${last.n.toLocaleString()} flows` : "—"} hint={drift.data ? `${drift.data.sampled_flows.toLocaleString()} sampled in total` : undefined} />
+        <Stat label="Live attack recall" value={perf?.attack_recall != null ? pct(perf.attack_recall) : "—"} hint={drift.data ? `retrain below ${pct(drift.data.min_attack_recall, 0)} (labelled flows)` : undefined} />
+        <Stat label="Live false alarms" value={perf?.benign_fpr != null ? pct(perf.benign_fpr) : "—"} hint={drift.data ? `retrain above ${pct(drift.data.max_benign_fpr, 0)}; ~1–2% by design` : undefined} />
         <Stat label="Retraining runs" value={runs.data?.length ?? "—"} hint={runs.data?.[0] ? `last: ${runs.data[0].status}` : undefined} />
-        <Stat label="IDS model" value={<span className="text-base">{String(m?.ids?.source ?? "—")}</span>} />
+        <Stat label="IDS model" value={servedVersion(m?.ids?.source)} hint={m?.ids?.source ? String(m.ids.source).replace(/ \(v\d+\)$/, "") : undefined} />
       </div>
 
       <Card title="Data drift of live flows vs the benign training reference">

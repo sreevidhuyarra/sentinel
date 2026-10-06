@@ -61,6 +61,10 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
         mostly 1 WebAttack flow of 22. Promotion now needs a paired bootstrap (95% CI of the gain
         > 0): v5 passes (0.0031, CI 0.0001-0.0104; PortScan also better), but the user chose to
         keep v3 because v5 trained on test-split flows (would inflate all later test-split evals)
+  - [x] committed 4a4fbd0; CI green (frontend, compose and image jobs included)
+  - [x] limitations pass: bootstrap gate for every `ids train` (production re-scored via its own
+        spec); trigger = benign-window drift or live recall < 0.9 / false alarms > 4%;
+        optional Basic auth (SENTINEL_API_KEY), compose ports on 127.0.0.1; README summary
 
 ## Commands (Windows: `make` is not installed, `uv` is not on PATH → `python -m uv` or `.venv\Scripts\*`)
 - `uv sync` — install; `uv run pytest -m "not slow"` — fast tests (synthetic data)
@@ -108,7 +112,11 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
   retraining, so `ids.dataset.without_overlap` drops val/test rows identical to a live flow,
   and `train(baseline=...)` re-scores production on the reduced test set for promotion.
   Run 1 (before the fix) promoted v4 on a leaked score: 0.9957 -> 0.9988.
-- Drift in the "all" window during Friday was the attack mix; the benign window stayed 0%.
+- Drift in the "all" window during Friday was the attack mix; the benign window stayed 0% and
+  live recall 99.8% -> the trigger now uses benign drift + live performance (`all` is display
+  only). Live false alarms are 1-2% by design (anomaly 1.55%, review 0.11%), so 2% would fire
+  on noise; budget 4%. Window queries need an upper time bound for as-of (backfill) checks.
+- MLflow's SQLite store returns model versions as int, the server as str: normalise with str().
 - Stream SHAP on every alert: 220 flows/s; once per campaign: ~1,440 flows/s, scoring
   ~46-49 ms per 500 flows (p95 48.6 ms).
 - Prefect tasks taking an Engine/DataFrame need `cache_policy=NONE` (hash warning otherwise).

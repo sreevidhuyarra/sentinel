@@ -31,6 +31,12 @@ def _engine(request: Request) -> Any:
     return _db_engine(request.app)
 
 
+def _utc(row: dict[str, Any]) -> dict[str, Any]:
+    """System timestamps (drift checks, retrain runs) are stored as naive UTC; mark them so
+    the browser shows local time. Alert `ts` is flow time from the dataset and stays as is."""
+    return {k: v.replace(tzinfo=UTC) if isinstance(v, datetime) else v for k, v in row.items()}
+
+
 def _since(minutes: int) -> datetime:
     return datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=minutes)
 
@@ -140,8 +146,10 @@ def drift_history(request: Request, limit: int = Query(200, ge=1, le=2000)) -> d
     return {
         "threshold": p.mlops.drift_threshold,
         "trigger_window": p.mlops.trigger_window,
+        "min_attack_recall": p.mlops.min_attack_recall,
+        "max_benign_fpr": p.mlops.max_benign_fpr,
         "sampled_flows": n_flows,
-        "checks": [dict(r._mapping) for r in reversed(rows)],
+        "checks": [_utc(dict(r._mapping)) for r in reversed(rows)],
     }
 
 
@@ -152,7 +160,7 @@ def retrain_history(request: Request, limit: int = Query(20, ge=1, le=200)) -> l
             select(retrain_runs).order_by(retrain_runs.c.id.desc()).limit(limit)
         ).all()
     return [
-        {k: v for k, v in r._mapping.items() if k != "error"} | {"failed": bool(r.error)}
+        _utc({k: v for k, v in r._mapping.items() if k != "error"}) | {"failed": bool(r.error)}
         for r in rows
     ]
 

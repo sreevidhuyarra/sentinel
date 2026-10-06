@@ -12,6 +12,47 @@ is automated.
 > detection, phishing, adversarial robustness, SOC copilot, and streaming + MLOps + dashboard.
 > See [CLAUDE.md](CLAUDE.md) for the checklist.
 
+## At a glance
+
+### How it fits together
+
+```
+ replayed network flows (CIC-IDS2017)                emails and links (dashboard or API)
+                 |                                                  |
+         Redpanda: net.flows                           M3  phishing: DeBERTa-v3 LoRA (ONNX)
+                 |                                         + URL model (LightGBM)
+ M6  stream detector, one fused verdict per flow:
+     M1  supervised IDS (LightGBM + MLP ensemble, SHAP reasons)
+     M2  autoencoder -> "Unknown anomaly"
+     M4  review flag (the two models disagree)
+                 |
+         Postgres: alerts ---------------> M5  SOC copilot: LangGraph, ATT&CK + KEV hybrid RAG,
+                 |                             injection guard -> cited incident report
+                 |                             (Gemini, with redaction; Ollama offline)
+     +-----------+---------------------+---------------------------------------+
+     |                                 |                                       |
+ M6  FastAPI + React dashboard     M6  Prometheus + Grafana          M6  drift watcher (Evidently)
+     (live alert feed, reports,        (throughput, latency,             + live performance
+      phishing, robustness)             drift, live recall)               -> Prefect retrain -> MLflow
+                                                                          (bootstrap promotion gate)
+```
+
+### Headline results
+
+Every number comes from a test split that is later in time than all training data. Every
+choice was made on validation, and the test split was scored once.
+
+| Module | What it does | Headline result |
+|---|---|---|
+| 1. Supervised IDS | Labels each flow as Benign or one of 7 attack families and explains the verdict | Macro-F1 **0.9957**. **3** false alarms in 286,833 benign test flows; attack recall 99.6%. Does not transfer to another network (UNSW-NB15 ROC-AUC 0.55–0.68). |
+| 2. Anomaly detection | Flags traffic unlike normal, catching attacks nobody labelled | Autoencoder ROC-AUC **0.943**. With a family held out of training, it catches **92%** of Infiltration and **100%** of Bot flows; the supervised model catches 0%. Web attacks stay invisible at flow level (2%). |
+| 3. Phishing | Classifies emails, explains them by sentence, and checks links | F1 **0.944** at **0.31%** false alarms (PR-AUC 0.997). The ONNX model is 273 MB and takes 129 ms per email on CPU. The URL checker has 0.09% false alarms and catches ~39% of malicious links. |
+| 4. Adversarial robustness | Attacks the detectors under a realistic threat model, then hardens them | Padding and delay evade the deployed ensemble **20.8%** of the time; the review flag cuts this to **3.5%** at the cost of 1.4% of benign flows sent for review. Bot traffic is the weak spot (94% evades without the flag). |
+| 5. SOC copilot | Turns an alert into a cited incident report | ATT&CK technique precision@1 **87.0%** (target ≥ 70%). Citations **100%** valid, faithfulness 92.6%. Prompt-injection success falls from 20.8% to **0%** with the guard. |
+| 6. Streaming + MLOps | Live detection, monitoring, drift-driven retraining and a dashboard | About **1,440 flows/s** on a laptop CPU, and p95 scoring time **48.6 ms** per 500-flow batch (target < 50 ms), both with the detector alone. With the whole stack on the same laptop it averages ~84 ms per ~320-flow batch. Retraining evaluation excludes replayed flows, which a caught leak showed was needed, and promotion requires a significant gain. |
+
+Each module's section below has the full tables, the studies behind them and what went wrong.
+
 ## Getting started
 
 Requirements: Python 3.12, [uv](https://docs.astral.sh/uv/), Docker Desktop, ~10 GB disk,
@@ -678,9 +719,9 @@ replayer --net.flows--> stream detector --alerts.new-->  API (REST + WebSocket) 
 | Replayer | `sentinel stream replay --days friday --rate 500` publishes flows to Redpanda (`net.flows`) at a set rate, in time order. Each message carries the flow's ground truth separately from its features, so the detector never sees it. |
 | Stream detector | `sentinel stream detect` consumes micro-batches (up to 500 flows or 0.2 s) and scores them with the fused Module 1+2 detector. It stores alerts, publishes them to `alerts.new`, and commits Kafka offsets only after the database write. SHAP reasons are computed once per campaign (source, target and family); later members point at the explained alert. |
 | Review flag | The Module 4 defense is now served. A flow passed as benign whose LightGBM and MLP members disagree by more than the validation-chosen gap becomes a Low "Needs review" alert, in the stream and in `POST /score/flows` (`needs_review`, `member_gap`). |
-| Drift watcher | `sentinel mlops drift-watch` compares the last 10 minutes of sampled live flows with benign training flows: Evidently PSI per feature, drifted share = features above 0.1. It checks two windows: all flows, and flows the detector called benign. Two consecutive checks above 20% start a retrain (60 min cooldown). |
-| Retraining | Prefect flow `sentinel-retrain` (`sentinel mlops retrain`): labelled live flows join the training split; LightGBM + MLP are retrained, registered `@staging`, and promoted to `@production` only if they beat production on test macro-F1 within the false-alarm budget. Every run is logged in the `retrain_runs` table. |
-| Metrics | Prometheus scrapes the detector (:9101), drift watcher (:9103) and API (`/metrics`): throughput, batch and scoring latency, end-to-end latency, consumer lag, alerts by family and severity, drift share, retrain runs, copilot reports, LLM tokens and guard flags. Grafana (:3000) provisions a 23-panel dashboard (`monitoring/build_dashboard.py`). |
+| Drift watcher | `sentinel mlops drift-watch` checks every minute. **Drift:** the last 10 minutes of sampled live flows against benign training flows, as the share of features with Evidently PSI above 0.1. It measures two windows: all flows, and flows the detector passed as benign. **Live performance:** on the labelled flows of the same window, the attack recall and the false-alarm rate (any alert counts, review flags included). A retrain starts after two consecutive checks with benign-window drift of 20% or more, recall below 90%, or false alarms above 4%, at most once an hour. |
+| Retraining | Prefect flow `sentinel-retrain` (`sentinel mlops retrain`): labelled live flows join the training split, and LightGBM + MLP are retrained. Validation and test rows identical to a live flow are dropped first. Production is re-scored on the same test rows, and the candidate is promoted only if a paired bootstrap puts its macro-F1 gain above zero, within the false-alarm budget. Every run is logged in the `retrain_runs` table. |
+| Metrics | Prometheus scrapes the detector (:9101), drift watcher (:9103) and API (`/metrics`): throughput, batch and scoring latency, end-to-end latency, consumer lag, alerts by family and severity, drift share per window, live recall and false-alarm rate, retrain runs, copilot reports, LLM tokens and guard flags. Grafana (:3000) provisions a 25-panel dashboard (`monitoring/build_dashboard.py`). |
 | Dashboard | React 19 + TypeScript + Vite + Tailwind + Recharts, served by the API at `/app/`. Pages: overview (live alert feed over WebSocket), alerts with filters, alert detail with SHAP reasons and related alerts, copilot report (Markdown export), phishing check, model health (drift, retrains, embedded Grafana) and robustness (run a pad-and-delay evasion test live). Each family keeps one colour, validated for colour-blind separation in light and dark mode. |
 
 ### Results
@@ -690,6 +731,12 @@ consuming as fast as the replayer could publish. Scoring a full 500-flow batch t
 about 46–49 ms (p95 48.6 ms, target under 50 ms). Explaining every alert
 with SHAP cut throughput to about 220 flows/s. Explaining once per campaign restored it.
 
+Those numbers are for the detector alone. With everything on one laptop (the replayer
+at 500 flows/s, API, drift job, Docker services, and a browser refreshing Grafana every
+10 s), a Friday replay averaged **84 ms** of scoring per batch of ~320 flows. 80% of batches
+finished under 100 ms, and p95 fell between 0.1 and 0.25 s. The detector kept up with the
+replay, but the < 50 ms target holds only when it has the CPU to itself.
+
 **Drift demo** (`scripts/drift_demo.ps1`: Monday's test flows, then Friday's, at 500 flows/s):
 
 | Phase | Drifted share (all flows) | Drifted share (benign window) |
@@ -697,12 +744,22 @@ with SHAP cut throughput to about 220 flows/s. Explaining once per campaign rest
 | Monday (benign) | 0–1% | 0–1% |
 | Friday (DDoS, PortScan, Bot) | 8.5% → 20.7% → 31.7% | 0% |
 
-Two consecutive checks at 20.7% started a retrain. The cooldown stopped a second trigger at
-31.7%. The benign window stayed at 0% throughout. What drifted was the attack mix (packet sizes, flag
-counts, destination ports), not normal traffic, so this alarm means "the traffic now looks
-different from what the model was trained on", not "the model is wrong". Watching the benign
-window separately separates the two. During the demo, which shared the CPU with a retrain, the live
-end-to-end latency (replay to stored alert) was p50 0.42 s and p95 1.8 s.
+The demo first ran with the original trigger, all-window drift. Two consecutive checks at
+20.7% started a retrain, and the cooldown stopped a second one at 31.7%. But the benign
+window stayed at 0% throughout. What drifted was the attack mix (packet sizes, flag counts,
+destination ports), not normal traffic. Over the same windows, the detector caught **99.8%**
+of the labelled live attacks, and its false alarms stayed at 0.1–3.1%. So the alarm meant
+"the traffic looks different", not "the model got worse", and that retrain was wasted work.
+
+The trigger was changed as a result. It now watches the benign window and live performance,
+and the all-window share is only displayed. Replaying the demo's 17 checks through the new
+rule starts no retrain.
+
+Live false alarms are 1–2% by design, so the 4% budget is double that. Of the labelled benign
+flows, 1.55% became "Unknown anomaly" (the autoencoder's threshold allows 1% on validation),
+0.11% became review flags, and 0.01% were given a known family. During the demo, which shared
+the CPU with a retrain, the live end-to-end latency (replay to stored alert) was p50 0.42 s
+and p95 1.8 s.
 
 **Retraining, and a leak it exposed.** The first drift-triggered run trained on 7,870
 labelled live flows and reported test macro-F1 0.9957 → 0.9988, so it was promoted. That
@@ -718,7 +775,8 @@ Almost all of that gap is one WebAttack flow: 21 of 22 caught before, 22 of 22 a
 Macro-F1 averages over eight families, so one flow in a 22-flow family moves it by about 0.003.
 
 That raised the question of whether "beats production" means anything at this level. So
-promotion now also needs a **paired bootstrap** over the test flows
+promotion now also needs a **paired bootstrap** over the test flows, for every training run
+and not only retraining
 (`ids.metrics.paired_bootstrap_f1`, 2,000 resamples): the 95% interval of the candidate's
 macro-F1 gain must lie above zero. Each resample is a multinomial draw over the
 (true, candidate, production) cells, so this is exact and takes milliseconds. On this candidate
@@ -744,11 +802,21 @@ uv run sentinel stream replay --days monday,friday --rate 500
 ```
 
 On Windows, `powershell -ExecutionPolicy Bypass -File scripts\drift_demo.ps1` starts the detector
-and drift watcher and replays both days. To run everything in containers instead:
+and drift watcher and replays both days. Drift shows on the dashboard and in Grafana, but
+with the default trigger no retrain starts, because the model keeps catching Friday's attacks.
+To see a retrain, set `mlops.trigger_window: all` in `params.yaml`. To run everything in containers instead:
 `docker compose --profile app up -d --build`. The demo replayer:
 `docker compose --profile app --profile demo run --rm replayer stream replay --days friday`.
 The dashboard is at http://localhost:8000/app/, Grafana at http://localhost:3000 and
 Prometheus at http://localhost:9090.
+
+**Access.** Every compose port binds to 127.0.0.1, so nothing is reachable from the network.
+The API and dashboard have no login unless `SENTINEL_API_KEY` is set in `.env`. With it set,
+they require HTTP Basic auth: any user name, the key as password. The browser asks once and
+resends the credentials, so the dashboard and its live feed need no login page; `/health`
+and `/metrics` stay open for health checks and Prometheus. `sentinel serve --host 0.0.0.0`
+warns if no key is set. Grafana, MLflow, Prometheus and Postgres have no auth of their own
+here, so keep them on localhost.
 
 ## API
 
@@ -783,9 +851,17 @@ built dashboard (`cd frontend && npm ci && npm run build`).
 
 Each training run logs parameters, metrics, figures and the model bundle to MLflow
 (experiment `sentinel-ids`, http://localhost:5000) and registers a new `ids-classifier`
-version with alias `@staging`. It moves to `@production` only if it was trained on the
-full data, beats the current production model on test macro-F1, and keeps benign FPR within
-budget.
+version with alias `@staging`. It moves to `@production` only if all of these hold:
+- It was trained on the full data.
+- It keeps benign FPR within budget.
+- It beats the current production model on test macro-F1, with production **re-scored on
+  the same test rows**.
+- A paired bootstrap over those rows (2,000 resamples, `ids.promotion_bootstrap`) puts the
+  95% interval of the gain above zero.
+
+A tie, or a one-flow win in a rare family, is not promoted. The comparison falls back to
+production's logged score only if production cannot be loaded or needs features this data
+does not have.
 
 ## Repository layout
 
@@ -804,7 +880,8 @@ src/sentinel/
   detection/  fusion.py: supervised + anomaly -> one verdict ("Unknown anomaly", review flag)
   stream/     Module 6: replayer, stream detector, messages, Prometheus metrics
   mlops/      Module 6: drift (Evidently), watch (trigger), retrain (Prefect flow)
-  services/   api.py (FastAPI: scoring, alerts, copilot, WebSocket, dashboard), dashboard.py, metrics.py
+  services/   api.py (FastAPI: scoring, alerts, copilot, WebSocket, dashboard), dashboard.py, metrics.py,
+              auth.py (optional Basic auth)
   cli.py      `sentinel` command; each pipeline subcommand is a DVC stage
 tests/        unit/, data/ (pipeline on synthetic data), model/ (training, registry, API)
 reports/      data_summary.json, ids/ (results, model card, figures, studies)

@@ -601,12 +601,24 @@ def mlops_retrain(
 
 @app.command()
 def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
-    """Run the FastAPI gateway (loads ids-classifier@production from MLflow)."""
+    """Run the FastAPI gateway (loads ids-classifier@production from MLflow).
+
+    Set SENTINEL_API_KEY to require a password; needed before listening beyond localhost.
+    """
     import uvicorn
 
+    from sentinel.common.config import get_settings
+    from sentinel.common.logging import get_logger
     from sentinel.services.api import create_app
 
-    uvicorn.run(create_app(), host=host, port=port)
+    key = get_settings().sentinel_api_key
+    if not key and host not in ("127.0.0.1", "localhost", "::1"):
+        get_logger("sentinel.serve").warning(
+            "serving on %s without SENTINEL_API_KEY: anyone on the network can read alerts "
+            "and run the copilot",
+            host,
+        )
+    uvicorn.run(create_app(api_key=key), host=host, port=port)
 
 
 if __name__ == "__main__":

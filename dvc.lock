@@ -102,8 +102,8 @@ stages:
       size: 265107928
     - path: src/sentinel/ids
       hash: md5
-      md5: e9a891bd99aab5f139d27bf8b3d00efd.dir
-      size: 85602
+      md5: 3151df510bbe192c134549c014d8c849.dir
+      size: 86750
       nfiles: 18
     params:
       params.yaml:
@@ -182,8 +182,8 @@ stages:
       nfiles: 1
     - path: src/sentinel/ids
       hash: md5
-      md5: e9a891bd99aab5f139d27bf8b3d00efd.dir
-      size: 85602
+      md5: 3151df510bbe192c134549c014d8c849.dir
+      size: 86750
       nfiles: 18
     params:
       params.yaml:
@@ -270,8 +270,8 @@ stages:
       nfiles: 8
     - path: src/sentinel/ids
       hash: md5
-      md5: e9a891bd99aab5f139d27bf8b3d00efd.dir
-      size: 85602
+      md5: 3151df510bbe192c134549c014d8c849.dir
+      size: 86750
       nfiles: 18
     params:
       params.yaml:

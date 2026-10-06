@@ -129,10 +129,11 @@ def build() -> dict[str, Any]:
         stat("Alerts / min", "sum(rate(sentinel_alerts_total[1m])) * 60", "short", 4, y),
         stat("Consumer lag", "sum(sentinel_consumer_lag)", "short", 8, y,
              desc="Flows waiting in net.flows; a rising lag means the detector is falling behind."),
-        stat("Batch time p95", q("sentinel_batch_seconds", 0.95), "s", 12, y,
+        stat("Batch p95", q("sentinel_batch_seconds", 0.95), "s", 12, y,
              desc="Score + explain + store one micro-batch."),
-        stat("Scoring time p95", q("sentinel_score_seconds", 0.95), "s", 16, y,
-             desc="Model time only; the design target is < 50 ms per micro-batch."),
+        stat("Scoring p95", q("sentinel_score_seconds", 0.95), "s", 16, y,
+             desc="Model time only. Target < 50 ms per 500-flow batch with the detector alone; "
+                  "~2x that with the replayer, API, drift job and browser on the same laptop."),
         stat("Drift share", "max(sentinel_drift_share)", "percentunit", 20, y,
              desc="Share of features whose live distribution differs from the training reference."),
     ]
@@ -161,13 +162,27 @@ def build() -> dict[str, Any]:
     y += 8
     panels.append(row("Model health and drift", y)); y += 1
     panels += [
-        series("Drift share (features drifted)", [("max(sentinel_drift_share)", "drift share"),
+        series("Drift share (features drifted)", [("max by (window) (sentinel_drift_share)", "{{window}} window"),
                                                   ("max(sentinel_drift_threshold)", "retrain threshold")],
-               "percentunit", 0, y, w=8),
+               "percentunit", 0, y, w=8,
+               desc="Retraining watches the benign window (flows the model passed); the all window "
+                    "also moves when a new attack campaign starts."),
         series("Most drifted features (PSI)",
                [("topk(5, sentinel_drift_feature_psi)", "{{feature}}")], "short", 8, y, w=8),
         series("Retraining runs", [("sum by (outcome) (increase(sentinel_retrain_runs_total[1h]))", "{{outcome}}")],
                "short", 16, y, w=8, bars=True),
+    ]
+    y += 8
+    panels += [
+        series("Live attack recall (labelled flows)",
+               [("max(sentinel_live_attack_recall)", "attack recall"),
+                ("max(sentinel_live_recall_floor)", "retrain below")], "percentunit", 0, y,
+               desc="Share of labelled live attacks the detector alerted on, last window."),
+        series("Live false-alarm rate (labelled flows)",
+               [("max(sentinel_live_benign_fpr)", "false-alarm rate"),
+                ("max(sentinel_live_fpr_budget)", "retrain above")], "percentunit", 12, y,
+               desc="Share of labelled live benign flows the detector alerted on (anomaly and "
+                    "review alerts included; ~1-2% by design)."),
     ]
     y += 8
     panels.append(row("Copilot", y)); y += 1

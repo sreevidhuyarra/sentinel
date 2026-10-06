@@ -9,6 +9,11 @@ Two live windows:
 - `all`: every sampled flow. Any change in the traffic mix, attack campaigns included.
 - `benign`: flows the model passed as benign. Drift here is what the model cannot see:
   unknown attacks, or normal traffic that no longer looks like training normal.
+
+Drift alone says the traffic changed, not that the model got worse: a new attack campaign
+the model catches moves the `all` window a lot. `live_performance` measures the model on
+the labelled flows of the window instead (replay ground truth here, analyst verdicts in a
+real deployment), and the watcher retrains on benign-window drift or degraded performance.
 """
 
 from __future__ import annotations
@@ -40,7 +45,7 @@ def live_window(
     with engine.connect() as conn:
         rows = conn.execute(
             select(flows.c.features, flows.c.predicted_family).where(
-                flows.c.scored_at >= now - timedelta(minutes=minutes)
+                flows.c.scored_at >= now - timedelta(minutes=minutes), flows.c.scored_at <= now
             )
         ).all()
     feats = [r[0] if isinstance(r[0], dict) else json.loads(r[0]) for r in rows]
@@ -49,6 +54,31 @@ def live_window(
     )
     benign = pl.Series([r[1] == "Benign" for r in rows], dtype=pl.Boolean)
     return {"all": frame, "benign": frame.filter(benign) if len(frame) else frame}
+
+
+def live_performance(engine: Engine, minutes: float, now: datetime | None = None) -> dict[str, Any]:
+    """Detector accuracy on the labelled sampled flows of the last `minutes`.
+
+    An attack counts as caught when the model raised any alert for it (a known family or
+    "Unknown anomaly"); a benign flow counts as a false alarm when it did.
+    """
+    now = now or datetime.now(UTC).replace(tzinfo=None)
+    with engine.connect() as conn:
+        rows = conn.execute(
+            select(flows.c.predicted_family, flows.c.family).where(
+                flows.c.scored_at >= now - timedelta(minutes=minutes),
+                flows.c.scored_at <= now,
+                flows.c.family.is_not(None),
+            )
+        ).all()
+    attacks = [pred != "Benign" for pred, truth in rows if truth != "Benign"]
+    benign = [pred != "Benign" for pred, truth in rows if truth == "Benign"]
+    return {
+        "n_attack": len(attacks),
+        "n_benign": len(benign),
+        "attack_recall": sum(attacks) / len(attacks) if attacks else None,
+        "benign_fpr": sum(benign) / len(benign) if benign else None,
+    }
 
 
 def compute_drift(

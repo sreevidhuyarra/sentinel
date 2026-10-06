@@ -96,6 +96,9 @@ drift_checks = Table(
     Column("share", Float),  # share of features drifted
     Column("drifted", JSONType),  # feature -> PSI, for drifted features
     Column("triggered", Integer, nullable=False, server_default="0"),
+    # Detector performance on the labelled flows of the same check (all windows share it).
+    Column("attack_recall", Float),
+    Column("benign_fpr", Float),
 )
 
 retrain_runs = Table(
@@ -148,6 +151,10 @@ def init_db(engine: Engine, ro_password: str | None = None) -> None:
     with engine.begin() as conn:
         # Columns added after the first release (create_all never alters a table).
         conn.execute(text("ALTER TABLE alerts ADD COLUMN IF NOT EXISTS features JSONB"))
+        for column in ("attack_recall", "benign_fpr"):
+            conn.execute(
+                text(f"ALTER TABLE drift_checks ADD COLUMN IF NOT EXISTS {column} DOUBLE PRECISION")
+            )
     if not ro_password:
         return
     with engine.begin() as conn:

@@ -254,10 +254,20 @@ mlops:
   # Share of drifted features that triggers retraining. On the test split, normal traffic
   # scores 0-5% against the benign reference and attack-heavy windows 41-76%.
   drift_threshold: 0.2
-  trigger_window: all     # all = any traffic change; benign = only flows the model passed
+  # Retrain when normal traffic drifts (benign = flows the model passed) or when the model
+  # does worse on labelled live flows. A new attack mix the model still catches moves the
+  # "all" window but is no reason to retrain (Module 6 drift demo: all 31%, benign 0%).
+  trigger_window: benign  # all = any traffic change (retrains on attack campaigns too)
+  min_attack_recall: 0.9  # share of labelled live attacks the model alerted on
+  # Share of labelled live benign flows it alerted on (any alert, review flags included).
+  # The fused detector is designed to send ~1-2% of normal traffic to an analyst (anomaly
+  # threshold at 1% on validation, review flag ~1%); Friday's demo ran at 1.7%. Trigger at 2x.
+  max_benign_fpr: 0.04
+  min_labelled_flows: 100 # per class (attack / benign) before a performance check counts
   consecutive: 2          # checks in a row above the threshold
   cooldown_minutes: 60
   retrain_models: [lightgbm, mlp]
   min_live_rows: 500      # labelled live flows needed to retrain
   max_live_rows: 200000
+  retrain_timeout_minutes: 120  # a "running" run older than this died with its process
   metrics_port: 9103

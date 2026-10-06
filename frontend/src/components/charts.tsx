@@ -21,6 +21,7 @@ function tooltipStyle(dark: boolean) {
 
 const num = (v: unknown): number => Number(Array.isArray(v) ? v[0] : (v ?? 0));
 
+const DRIFT_GAP_MS = 10 * 60_000; // drift checks run every minute; a longer gap is a new session
 const minuteLabel = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 
 export function AlertsPerMinute({ data, families }: { data: Array<Record<string, any>>; families: string[] }) {
@@ -94,14 +95,28 @@ export function DriftChart({ checks, threshold }: { checks: Array<{ ts: string; 
     row[ch.window] = ch.share;
     byTs.set(ch.ts, row);
   }
-  const data = [...byTs.values()];
+  // Checks from separate sessions (hours apart) get an empty row between them, so the lines
+  // break instead of joining two sessions; the axis shows the date once checks span days.
+  const data: Array<Record<string, any>> = [];
+  let prev: number | null = null;
+  for (const row of [...byTs.values()].sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts))) {
+    const t = Date.parse(row.ts);
+    if (prev != null && t - prev > DRIFT_GAP_MS) data.push({ ts: `gap-${data.length}` });
+    data.push(row);
+    prev = t;
+  }
+  const days = new Set(data.filter((r) => !r.ts.startsWith("gap")).map((r) => new Date(r.ts).toDateString()));
+  const label = (ts: string) =>
+    ts.startsWith("gap") ? "" : days.size > 1
+      ? new Date(ts).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+      : minuteLabel(ts);
   return (
     <ResponsiveContainer width="100%" height={240}>
       <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
         <CartesianGrid vertical={false} stroke={c.grid} />
-        <XAxis dataKey="ts" tickFormatter={minuteLabel} {...axisProps(dark)} minTickGap={32} />
+        <XAxis dataKey="ts" tickFormatter={label} {...axisProps(dark)} minTickGap={40} />
         <YAxis domain={[0, 1]} tickFormatter={(v) => `${Math.round(v * 100)}%`} {...axisProps(dark)} width={44} />
-        <Tooltip {...tooltipStyle(dark)} labelFormatter={(l) => minuteLabel(String(l))} formatter={(v, n) => [`${(num(v) * 100).toFixed(1)}%`, `${n} flows`]} />
+        <Tooltip {...tooltipStyle(dark)} labelFormatter={(l) => label(String(l))} formatter={(v, n) => [`${(num(v) * 100).toFixed(1)}%`, `${n} flows`]} />
         <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => <span style={{ color: c.ink2 }}>{v === "all" ? "all flows" : "flows passed as benign"}</span>} />
         <ReferenceLine y={threshold} stroke={c.ink2} strokeDasharray="4 4" label={{ value: `retrain threshold ${Math.round(threshold * 100)}%`, fill: c.ink2, fontSize: 11, position: "insideTopRight" }} />
         <Line type="monotone" dataKey="all" stroke={familyColor("DoS", dark)} strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />

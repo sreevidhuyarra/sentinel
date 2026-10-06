@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import shutil
 import traceback
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +32,26 @@ def _now() -> datetime:
 
 
 # Inputs (a DB engine, a DataFrame) are not hashable, and results must never be reused.
+def close_stale_runs(engine: Engine, timeout_minutes: float) -> int:
+    """Mark runs left "running" by a killed process as interrupted; returns how many.
+
+    A retrain runs in its own process; if that process is killed (its parent service
+    stopped, the laptop shut down) it cannot record its own end.
+    """
+    cutoff = _now() - timedelta(minutes=timeout_minutes)
+    with engine.begin() as conn:
+        result = conn.execute(
+            update(retrain_runs)
+            .where(retrain_runs.c.status == "running", retrain_runs.c.started < cutoff)
+            .values(
+                status="interrupted",
+                finished=_now(),
+                error=f"no result after {timeout_minutes:g} min: the process ended early",
+            )
+        )
+    return int(result.rowcount or 0)
+
+
 @task(name="pull-labelled-live-flows", cache_policy=NONE)
 def labelled_live_flows(engine: Engine, inputs: list[str], limit: int) -> pl.DataFrame:
     """The most recent sampled flows that carry a label, as model inputs + `family`."""
@@ -81,6 +101,7 @@ def retrain_flow(reason: str, params_file: str | None = None) -> dict[str, Any]:
     settings = get_settings()
     engine = make_engine(settings.postgres_url)
     init_db(engine)
+    close_stale_runs(engine, params.mlops.retrain_timeout_minutes)
     with engine.begin() as conn:
         key = conn.execute(
             insert(retrain_runs).values(started=_now(), reason=reason, status="running")

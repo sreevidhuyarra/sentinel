@@ -79,6 +79,9 @@ def test_drift_and_retrain_history(client: TestClient) -> None:
     d = client.get("/mlops/drift").json()
     assert [c["share"] for c in d["checks"]] == [0.05, 0.31]  # oldest first, for the chart
     assert d["checks"][1]["triggered"] == 1 and d["threshold"] > 0
+    assert d["checks"][0]["ts"].endswith(
+        ("Z", "+00:00")
+    )  # stored UTC; the browser shows local time
     runs = client.get("/mlops/retrains").json()
     assert runs[0]["status"] == "staged" and runs[0]["metrics"]["candidate_value"] == 0.99
     assert "error" not in runs[0] and runs[0]["failed"] is False
@@ -100,3 +103,23 @@ def test_frontend_routes(
     leaked = client.get("/app/..%2Fsecret.txt")
     assert "do not serve" not in leaked.text and "root" in leaked.text  # never escapes dist
     assert client.get("/", follow_redirects=False).headers["location"] == "/app/"
+
+
+def test_api_key_guards_routes_and_alert_feed(tmp_path: Path) -> None:
+    from starlette.websockets import WebSocketDisconnect
+
+    engine = make_engine(f"sqlite:///{tmp_path / 'auth.sqlite'}")
+    init_db(engine)
+    app = create_app(bundle=object(), db=engine, api_key="s3cret")  # type: ignore[arg-type]
+    with TestClient(app) as c:
+        denied = c.get("/stats/overview")
+        assert denied.status_code == 401 and denied.headers["www-authenticate"].startswith("Basic")
+        assert c.get("/stats/overview", auth=("analyst", "wrong")).status_code == 401
+        assert c.get("/stats/overview", auth=("analyst", "s3cret")).status_code == 200
+        assert c.get("/health").status_code == 200  # container health checks
+        assert c.get("/metrics").status_code == 200  # Prometheus scrape
+        with pytest.raises(WebSocketDisconnect), c.websocket_connect("/ws/alerts"):
+            pass
+        token = "Basic YW5hbHlzdDpzM2NyZXQ="  # analyst:s3cret
+        with c.websocket_connect("/ws/alerts", headers={"authorization": token}):
+            pass

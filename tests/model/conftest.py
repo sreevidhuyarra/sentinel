@@ -41,6 +41,12 @@ def mlflow_sandbox(root: Path) -> Iterator[None]:
 
 
 @pytest.fixture(scope="session")
+def sandbox() -> Any:
+    """`mlflow_sandbox` for tests that train again into the session registry."""
+    return mlflow_sandbox
+
+
+@pytest.fixture(scope="session")
 def mlflow_root(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return tmp_path_factory.mktemp("models")
 

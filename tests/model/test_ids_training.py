@@ -30,6 +30,26 @@ def test_registered_and_promoted(trained: dict[str, Any]) -> None:
     assert reg["version"] == "1" and reg["promoted"] is True
 
 
+def test_retraining_compares_against_production_on_the_same_rows(
+    trained: dict[str, Any], sandbox: Any, tmp_path: Any
+) -> None:
+    """A second run with the same settings is a tie, so the bootstrap gate keeps production."""
+    from sentinel.ids.train import train
+
+    with sandbox(trained["root"]):
+        out = train(
+            trained["params"],
+            "full",
+            models=("lightgbm", "mlp"),
+            out_dir=tmp_path / "bundle",
+            reports_dir=tmp_path / "reports",
+        )
+    reg = out["registry"]
+    assert reg["version"] == "2" and reg["production_version"] == "1"
+    assert reg["production_value"] is not None  # re-scored, not the logged number
+    assert reg["gain_ci_low"] <= 0 and reg["promoted"] is False
+
+
 def test_reports_written(trained: dict[str, Any]) -> None:
     reports = trained["root"] / "reports"
     for name in (

@@ -94,7 +94,7 @@ def promote(
         "candidate_sample": run.data.params.get("sample"),
         "candidate_value": new_value,
         "candidate_fpr": new_fpr,
-        "production_version": prod.version if prod else None,
+        "production_version": str(prod.version) if prod else None,
         "production_value": prod_value if prod and prod_value >= 0 else None,
         **({"gain_ci_low": gain_ci[0], "gain_ci_high": gain_ci[1]} if gain_ci else {}),
         "promoted": promoted,

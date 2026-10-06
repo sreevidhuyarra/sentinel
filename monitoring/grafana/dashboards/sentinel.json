@@ -166,7 +166,7 @@
     {
       "id": 5,
       "type": "stat",
-      "title": "Batch time p95",
+      "title": "Batch p95",
       "description": "Score + explain + store one micro-batch.",
       "datasource": {
         "type": "prometheus",
@@ -212,8 +212,8 @@
     {
       "id": 6,
       "type": "stat",
-      "title": "Scoring time p95",
-      "description": "Model time only; the design target is < 50 ms per micro-batch.",
+      "title": "Scoring p95",
+      "description": "Model time only. Target < 50 ms per 500-flow batch with the detector alone; ~2x that with the replayer, API, drift job and browser on the same laptop.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -811,7 +811,7 @@
       "id": 14,
       "type": "timeseries",
       "title": "Drift share (features drifted)",
-      "description": "",
+      "description": "Retraining watches the benign window (flows the model passed); the all window also moves when a new attack campaign starts.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -825,8 +825,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max(sentinel_drift_share)",
-          "legendFormat": "drift share",
+          "expr": "max by (window) (sentinel_drift_share)",
+          "legendFormat": "{{window}} window",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -983,19 +983,147 @@
     },
     {
       "id": 17,
+      "type": "timeseries",
+      "title": "Live attack recall (labelled flows)",
+      "description": "Share of labelled live attacks the detector alerted on, last window.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(sentinel_live_attack_recall)",
+          "legendFormat": "attack recall",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "max(sentinel_live_recall_floor)",
+          "legendFormat": "retrain below",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            },
+            "axisSoftMin": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 18,
+      "type": "timeseries",
+      "title": "Live false-alarm rate (labelled flows)",
+      "description": "Share of labelled live benign flows the detector alerted on (anomaly and review alerts included; ~1-2% by design).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 30,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(sentinel_live_benign_fpr)",
+          "legendFormat": "false-alarm rate",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "max(sentinel_live_fpr_budget)",
+          "legendFormat": "retrain above",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            },
+            "axisSoftMin": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 19,
       "type": "row",
       "title": "Copilot",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 30,
+        "y": 38,
         "w": 24,
         "h": 1
       },
       "panels": []
     },
     {
-      "id": 18,
+      "id": 20,
       "type": "timeseries",
       "title": "Reports per minute",
       "description": "",
@@ -1005,7 +1133,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 31,
+        "y": 39,
         "w": 8,
         "h": 8
       },
@@ -1050,7 +1178,7 @@
       }
     },
     {
-      "id": 19,
+      "id": 21,
       "type": "timeseries",
       "title": "Report latency",
       "description": "",
@@ -1060,7 +1188,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 31,
+        "y": 39,
         "w": 8,
         "h": 8
       },
@@ -1114,7 +1242,7 @@
       }
     },
     {
-      "id": 20,
+      "id": 22,
       "type": "timeseries",
       "title": "LLM tokens per minute",
       "description": "",
@@ -1124,7 +1252,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 31,
+        "y": 39,
         "w": 8,
         "h": 8
       },
@@ -1169,20 +1297,20 @@
       }
     },
     {
-      "id": 21,
+      "id": 23,
       "type": "row",
       "title": "API",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 39,
+        "y": 47,
         "w": 24,
         "h": 1
       },
       "panels": []
     },
     {
-      "id": 22,
+      "id": 24,
       "type": "timeseries",
       "title": "Requests per second by route",
       "description": "",
@@ -1192,7 +1320,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 40,
+        "y": 48,
         "w": 12,
         "h": 8
       },
@@ -1237,7 +1365,7 @@
       }
     },
     {
-      "id": 23,
+      "id": 25,
       "type": "timeseries",
       "title": "Request latency p95 by route",
       "description": "",
@@ -1247,7 +1375,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 40,
+        "y": 48,
         "w": 12,
         "h": 8
       },

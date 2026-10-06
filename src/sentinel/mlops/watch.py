@@ -1,8 +1,10 @@
-"""The drift job: check live drift every few minutes, export it, trigger retraining.
+"""The drift job: check live drift and performance every minute, export both, retrain.
 
-Retraining starts when the chosen window's drift share stays at or above the threshold for
-`consecutive` checks, at most once per `cooldown_minutes`. It runs in a separate process
-(`sentinel mlops retrain`), so a 15-minute training run never blocks the drift checks.
+A check is "degraded" when the trigger window's drift share reaches the threshold (normal
+traffic changed; by default the benign window), or when the labelled live flows show attack
+recall below its floor or false alarms above their budget. Retraining starts after
+`consecutive` degraded checks, at most once per `cooldown_minutes`, in a separate process
+(`sentinel mlops retrain`) so a 15-minute training run never blocks the checks.
 """
 
 from __future__ import annotations
@@ -21,7 +23,7 @@ from sqlalchemy import Engine, insert, select
 from sentinel.common.config import MlopsParams
 from sentinel.common.logging import get_logger
 from sentinel.db.schema import drift_checks, retrain_runs
-from sentinel.mlops.drift import compute_drift, live_window
+from sentinel.mlops.drift import compute_drift, live_performance, live_window
 
 log = get_logger(__name__)
 
@@ -32,6 +34,11 @@ DRIFT_N = Gauge("sentinel_drift_window_flows", "Flows in the drift window", ["wi
 DRIFT_PSI = Gauge("sentinel_drift_feature_psi", "Per-feature drift score (PSI)", ["feature"])
 DRIFT_THRESHOLD = Gauge("sentinel_drift_threshold", "Drift share that triggers retraining")
 DRIFT_DETECTED = Gauge("sentinel_drift_detected", "1 while drift is above the threshold")
+LIVE_RECALL = Gauge("sentinel_live_attack_recall", "Alerted share of labelled live attacks")
+LIVE_FPR = Gauge("sentinel_live_benign_fpr", "Alerted share of labelled live benign flows")
+DEGRADED = Gauge("sentinel_model_degraded", "1 while a retraining condition holds")
+RECALL_FLOOR = Gauge("sentinel_live_recall_floor", "Live attack recall that triggers retraining")
+FPR_BUDGET = Gauge("sentinel_live_fpr_budget", "Live false-alarm rate that triggers retraining")
 RETRAINS = Counter(
     "sentinel_retrain_runs_total", "Retraining runs started by the drift job", ["outcome"]
 )
@@ -50,8 +57,14 @@ class DriftWatcher:
         self.engine, self.reference, self.inputs, self.cfg = engine, reference, inputs, cfg
         self.start_retrain, self.clock = start_retrain, clock
         self.above = 0
+        from sentinel.mlops.retrain import close_stale_runs
+
+        if n := close_stale_runs(engine, cfg.retrain_timeout_minutes):
+            log.warning("marked %d retraining run(s) left running by a killed process", n)
         self.last_retrain = self._last_retrain_time()
         DRIFT_THRESHOLD.set(cfg.drift_threshold)
+        RECALL_FLOOR.set(cfg.min_attack_recall)
+        FPR_BUDGET.set(cfg.max_benign_fpr)
 
     def _last_retrain_time(self) -> float:
         with self.engine.connect() as conn:
@@ -88,18 +101,19 @@ class DriftWatcher:
                     "triggered": 0,
                 }
             )
-        share = (out.get(self.cfg.trigger_window) or {}).get("share")
-        detected = share is not None and share >= self.cfg.drift_threshold
-        DRIFT_DETECTED.set(int(detected))
-        self.above = self.above + 1 if detected else 0
+        perf = live_performance(self.engine, self.cfg.window_minutes)
+        out["performance"] = perf
+        for r in rows:
+            r["attack_recall"], r["benign_fpr"] = perf["attack_recall"], perf["benign_fpr"]
+        reasons = self._reasons(out, perf)
+        degraded = bool(reasons)
+        DEGRADED.set(int(degraded))
+        self.above = self.above + 1 if degraded else 0
         cooled = self.clock() - self.last_retrain >= 60 * self.cfg.cooldown_minutes
-        trigger = detected and self.above >= self.cfg.consecutive and cooled
+        trigger = degraded and self.above >= self.cfg.consecutive and cooled
         if trigger:
-            reason = (
-                f"{self.cfg.trigger_window}-window drift share {share:.2f} >= "
-                f"{self.cfg.drift_threshold:.2f} for {self.above} checks"
-            )
-            log.warning("drift detected: %s; starting retraining", reason)
+            reason = f"{'; '.join(reasons)} for {self.above} checks"
+            log.warning("model degraded: %s; starting retraining", reason)
             self.start_retrain(reason)
             RETRAINS.labels("started").inc()
             self.last_retrain, self.above = self.clock(), 0
@@ -111,6 +125,26 @@ class DriftWatcher:
                 conn.execute(insert(drift_checks), rows)
         out["triggered"] = trigger
         return out
+
+    def _reasons(self, out: dict[str, Any], perf: dict[str, Any]) -> list[str]:
+        cfg, reasons = self.cfg, []
+        share = (out.get(cfg.trigger_window) or {}).get("share")
+        drifted = share is not None and share >= cfg.drift_threshold
+        DRIFT_DETECTED.set(int(drifted))
+        if drifted:
+            reasons.append(
+                f"{cfg.trigger_window}-window drift share {share:.2f} >= {cfg.drift_threshold:.2f}"
+            )
+        recall, fpr = perf["attack_recall"], perf["benign_fpr"]
+        if recall is not None:
+            LIVE_RECALL.set(recall)
+            if perf["n_attack"] >= cfg.min_labelled_flows and recall < cfg.min_attack_recall:
+                reasons.append(f"live attack recall {recall:.3f} < {cfg.min_attack_recall:.3f}")
+        if fpr is not None:
+            LIVE_FPR.set(fpr)
+            if perf["n_benign"] >= cfg.min_labelled_flows and fpr > cfg.max_benign_fpr:
+                reasons.append(f"live false-alarm rate {fpr:.3f} > {cfg.max_benign_fpr:.3f}")
+        return reasons
 
 
 def spawn_retrain(reason: str) -> subprocess.Popen[bytes]:

@@ -90,8 +90,10 @@ export const api = {
     call<{
       threshold: number;
       trigger_window: string;
+      min_attack_recall: number;
+      max_benign_fpr: number;
       sampled_flows: number;
-      checks: Array<{ id: number; ts: string; window: string; n: number; share: number | null; drifted: Record<string, number> | null; triggered: number }>;
+      checks: Array<{ id: number; ts: string; window: string; n: number; share: number | null; drifted: Record<string, number> | null; triggered: number; attack_recall: number | null; benign_fpr: number | null }>;
     }>(`/mlops/drift?limit=500`),
   retrains: () =>
     call<Array<{ id: number; started: string; finished: string | null; reason: string; n_extra: number | null; status: string; version: string | null; metrics: Record<string, unknown> | null; failed: boolean }>>(

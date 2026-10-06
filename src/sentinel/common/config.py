@@ -279,12 +279,18 @@ class MlopsParams(BaseModel):
     method: str = "psi"
     feature_threshold: float = Field(0.1, gt=0)  # a feature drifts at PSI >= this
     drift_threshold: float = Field(0.2, gt=0, le=1)  # share of drifted features that triggers
-    trigger_window: Literal["all", "benign"] = "all"
+    trigger_window: Literal["all", "benign"] = "benign"
+    # Performance trigger on labelled live flows; each needs min_labelled_flows to count.
+    min_attack_recall: float = Field(0.9, ge=0, le=1)
+    max_benign_fpr: float = Field(0.04, ge=0, le=1)
+    min_labelled_flows: int = Field(100, ge=1)
     consecutive: int = Field(2, ge=1)  # checks in a row above the threshold
     cooldown_minutes: float = Field(60.0, ge=0)  # at most one retraining per cooldown
     retrain_models: list[str] = Field(default_factory=lambda: ["lightgbm", "mlp"])
     min_live_rows: int = Field(500, ge=0)  # labelled live flows needed to retrain
     max_live_rows: int = Field(200_000, ge=1)
+    # A run still "running" after this long lost its process (killed with its parent).
+    retrain_timeout_minutes: float = Field(120.0, gt=0)
     metrics_port: int = 9103
 
 
@@ -332,6 +338,8 @@ class Settings(BaseSettings):
     url_model_uri: str = "models:/url-classifier@production"
     url_model_path: Path = PROJECT_ROOT / "models" / "phishing" / "url_bundle"
     log_level: str = "INFO"
+    # When set, the API and dashboard require HTTP Basic auth with this key as the password.
+    sentinel_api_key: str | None = None
 
 
 def load_params(path: Path | None = None) -> Params:
