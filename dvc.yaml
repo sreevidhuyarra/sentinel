@@ -203,3 +203,28 @@ stages:
     metrics:
       - reports/ids/cross_dataset_metrics.json:
           cache: false
+
+  # Train on one or two of three networks, test on all, with and without the shortcut
+  # features (~25 min; needs MLflow and the 10.4 GB CSE-CIC-IDS2018 zip:
+  # `sentinel ids generalisation --download`). The zip is read in place, never cached.
+  generalisation:
+    cmd: sentinel ids generalisation
+    deps:
+      - data/raw/cse_cic_ids2018/CSECICIDS2018_improved.zip
+      - data/interim/cic_unsw_nb15.parquet
+      - data/processed/flows.parquet
+      - data/processed/feature_spec.json
+      - src/sentinel/ids/generalisation.py
+      - src/sentinel/ids/crossdataset.py
+    params:
+      - seed
+      - generalisation
+    outs:
+      - data/interim/cse_cic_ids2018.parquet
+      - reports/ids/generalisation.json:
+          cache: false
+      - reports/ids/generalisation.md:
+          cache: false
+    metrics:
+      - reports/ids/generalisation_metrics.json:
+          cache: false

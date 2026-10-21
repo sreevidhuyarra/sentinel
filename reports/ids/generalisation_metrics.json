@@ -1,0 +1,14 @@
+{
+  "shared/unseen_cic2017/two_networks": 0.9417576035670034,
+  "shared/unseen_cic2017/best_single": 0.9711581450886558,
+  "shared/unseen_unsw/two_networks": 0.4898362717400263,
+  "shared/unseen_unsw/best_single": 0.6371579532434883,
+  "shared/unseen_cic2018/two_networks": 0.7446669261606456,
+  "shared/unseen_cic2018/best_single": 0.8259641957876196,
+  "no_shortcuts/unseen_cic2017/two_networks": 0.9774422106874362,
+  "no_shortcuts/unseen_cic2017/best_single": 0.9845431936228115,
+  "no_shortcuts/unseen_unsw/two_networks": 0.6985652798384437,
+  "no_shortcuts/unseen_unsw/best_single": 0.7116386540759972,
+  "no_shortcuts/unseen_cic2018/two_networks": 0.8316484603170528,
+  "no_shortcuts/unseen_cic2018/best_single": 0.7426822517465926
+}

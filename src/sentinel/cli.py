@@ -62,6 +62,7 @@ def synth(out_dir: Path = Path("data/raw/synthetic"), seed: int = 0) -> None:
 
 
 UNSW_CSV = Path("data/raw/cic_unsw_nb15/CICFlowMeter_out.csv")
+CIC2018_ZIP = Path("data/raw/cse_cic_ids2018/CSECICIDS2018_improved.zip")
 ids_app = typer.Typer(no_args_is_help=True, help="Module 1: supervised intrusion detection.")
 app.add_typer(ids_app, name="ids")
 
@@ -120,6 +121,30 @@ def ids_cross_dataset(
         csv = download_cic_unsw_nb15(csv.parent)
     run(p, csv)
     typer.echo("wrote reports/ids/cross_dataset.md")
+
+
+@ids_app.command("generalisation")
+def ids_generalisation(
+    unsw_csv: Path | None = typer.Option(None, help=f"CIC-UNSW-NB15 CSV [default: {UNSW_CSV}]"),
+    cic2018_zip: Path | None = typer.Option(None, help=f"[default: {CIC2018_ZIP}]"),
+    download: bool = typer.Option(False, help="download missing datasets first (~12 GB)"),
+    params_file: Path | None = None,
+) -> None:
+    """Train on one or two of three networks, test on all; with and without shortcut features."""
+    from sentinel.ids.generalisation import run
+
+    p = load_params(params_file)
+    unsw = p.resolve(unsw_csv or UNSW_CSV)
+    cic18 = p.resolve(cic2018_zip or CIC2018_ZIP)
+    if download:
+        from sentinel.data.download import download_cic2018, download_cic_unsw_nb15
+
+        if not unsw.exists():
+            unsw = download_cic_unsw_nb15(unsw.parent)
+        if not cic18.exists():
+            cic18 = download_cic2018(cic18.parent)
+    run(p, unsw, cic18)
+    typer.echo("wrote reports/ids/generalisation.md")
 
 
 @ids_app.command("imbalance")

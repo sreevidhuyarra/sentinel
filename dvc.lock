@@ -102,9 +102,9 @@ stages:
       size: 265107928
     - path: src/sentinel/ids
       hash: md5
-      md5: 3151df510bbe192c134549c014d8c849.dir
-      size: 86750
-      nfiles: 18
+      md5: 1dc8d1f9a8edc116afc0902d02e54d6b.dir
+      size: 105909
+      nfiles: 19
     params:
       params.yaml:
         ids:
@@ -182,9 +182,9 @@ stages:
       nfiles: 1
     - path: src/sentinel/ids
       hash: md5
-      md5: 3151df510bbe192c134549c014d8c849.dir
-      size: 86750
-      nfiles: 18
+      md5: 1dc8d1f9a8edc116afc0902d02e54d6b.dir
+      size: 105909
+      nfiles: 19
     params:
       params.yaml:
         ids:
@@ -270,9 +270,9 @@ stages:
       nfiles: 8
     - path: src/sentinel/ids
       hash: md5
-      md5: 3151df510bbe192c134549c014d8c849.dir
-      size: 86750
-      nfiles: 18
+      md5: 1dc8d1f9a8edc116afc0902d02e54d6b.dir
+      size: 105909
+      nfiles: 19
     params:
       params.yaml:
         anomaly:
@@ -654,3 +654,58 @@ stages:
       hash: md5
       md5: 291d7efd81b96044a732f3becc3ef31a
       size: 5818
+  generalisation:
+    cmd: sentinel ids generalisation
+    deps:
+    - path: data/interim/cic_unsw_nb15.parquet
+      hash: md5
+      md5: 8c21b96a2370a4769f1ff03e738d25c2
+      size: 291873462
+    - path: data/processed/feature_spec.json
+      hash: md5
+      md5: 77943abbde336139e209c1fde5dc0a5e
+      size: 3756
+    - path: data/processed/flows.parquet
+      hash: md5
+      md5: 6430f543132d8cff57fa0b15291ee8c7
+      size: 265107928
+    - path: data/raw/cse_cic_ids2018/CSECICIDS2018_improved.zip
+      hash: md5
+      md5: 999a56752978a7a87d3faabdaf66e75f
+      size: 10426851729
+    - path: src/sentinel/ids/crossdataset.py
+      hash: md5
+      md5: f6f4ffd7145686d85e6de8f5686cffdf
+      size: 17850
+    - path: src/sentinel/ids/generalisation.py
+      hash: md5
+      md5: 6c40ba54f2cd57a653f67dd76a868bc3
+      size: 19159
+    params:
+      params.yaml:
+        generalisation:
+          cic2018_per_label: 150000
+          train_benign: 300000
+          train_attack: 300000
+          val_benign: 100000
+          val_attack: 100000
+          test_benign: 300000
+          test_attack: 300000
+        seed: 42
+    outs:
+    - path: data/interim/cse_cic_ids2018.parquet
+      hash: md5
+      md5: dfb77acb4c2755afe659bfee972dd601
+      size: 321088603
+    - path: reports/ids/generalisation.json
+      hash: md5
+      md5: c3f1fe9dab65143a61b0267a8751292e
+      size: 45859
+    - path: reports/ids/generalisation.md
+      hash: md5
+      md5: 63182d4b2a76b6674641d2ba63a39b47
+      size: 5213
+    - path: reports/ids/generalisation_metrics.json
+      hash: md5
+      md5: 1279567b45f3a7aa95533ec64557c0ce
+      size: 753

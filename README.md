@@ -44,7 +44,7 @@ choice was made on validation, and the test split was scored once.
 
 | Module | What it does | Headline result |
 |---|---|---|
-| 1. Supervised IDS | Labels each flow as Benign or one of 7 attack families and explains the verdict | Macro-F1 **0.9957**. **3** false alarms in 286,833 benign test flows; attack recall 99.6%. Does not transfer to another network (UNSW-NB15 ROC-AUC 0.55–0.68). |
+| 1. Supervised IDS | Labels each flow as Benign or one of 7 attack families and explains the verdict | Macro-F1 **0.9957**. **3** false alarms in 286,833 benign test flows; attack recall 99.6%. Does not transfer to another network (UNSW-NB15 ROC-AUC 0.55–0.68), and neither removing shortcut features nor training on two networks fixes that (≤ 17% of attacks caught at 1% false alarms). |
 | 2. Anomaly detection | Flags traffic unlike normal, catching attacks nobody labelled | Autoencoder ROC-AUC **0.943**. With a family held out of training, it catches **92%** of Infiltration and **100%** of Bot flows; the supervised model catches 0%. Web attacks stay invisible at flow level (2%). |
 | 3. Phishing | Classifies emails, explains them by sentence, and checks links | F1 **0.944** at **0.31%** false alarms (PR-AUC 0.997). The ONNX model is 273 MB and takes 129 ms per email on CPU. The URL checker has 0.09% false alarms and catches ~39% of malicious links. |
 | 4. Adversarial robustness | Attacks the detectors under a realistic threat model, then hardens them | Padding and delay evade the deployed ensemble **20.8%** of the time; the review flag cuts this to **3.5%** at the cost of 1.4% of benign flows sent for review. Bot traffic is the weak spot (94% evades without the flag). |
@@ -229,6 +229,68 @@ Full report: [reports/ids/cross_dataset.md](reports/ids/cross_dataset.md).
   Deployment needs training or fine-tuning on the target network, which is the reason for the
   anomaly detector (Module 2, which learns only what normal looks like), drift monitoring
   and retraining (Module 6), and feature hardening (Module 4).
+
+### Generalisation study: can it be made to transfer?
+
+`uv run sentinel ids generalisation --download` (or `dvc repro -s generalisation`, ~25 min)
+tests the two usual fixes. Report: [reports/ids/generalisation.md](reports/ids/generalisation.md).
+
+1. **Remove shortcut features.** These are four features that describe how a testbed was
+   configured, not how attacks behave: `dst_port` (which services ran where) and the TCP
+   stack defaults `fwd_init_win_bytes`, `bwd_init_win_bytes` and `fwd_seg_size_min`.
+2. **Train on more than one network.** A third network is added: CSE-CIC-IDS2018 in
+   DistriNet's corrected release, which has the same features. Models train on one or two
+   networks and are tested on all three.
+
+**Setup.** The study uses binary LightGBM: the three networks use different attack
+categories, so families can't be compared. Each network weighs the same, and within each,
+benign and attack weigh the same. Thresholds come from the training networks' validation
+data. Both the shortcut list and the design were fixed before any result was seen.
+CSE-CIC-IDS2018 is a different and larger network, but built by the same lab with mostly
+the same attack tools, so it is an easier test than UNSW.
+
+ROC-AUC on a network the model never saw:
+
+| Trained on | Unseen network | All 79 features | Without shortcuts |
+|---|---|---|---|
+| CIC-IDS2017 | UNSW-NB15 | 0.637 | 0.712 |
+| CIC-IDS2017 | CSE-CIC-IDS2018 | 0.826 | 0.743 |
+| CSE-CIC-IDS2018 | CIC-IDS2017 | 0.971 | 0.985 |
+| CSE-CIC-IDS2018 | UNSW-NB15 | 0.202 | 0.452 |
+| UNSW-NB15 | CIC-IDS2017 / CSE-CIC-IDS2018 | 0.310 / 0.242 | 0.424 / 0.367 |
+| CIC-IDS2017 + CSE-CIC-IDS2018 | UNSW-NB15 | 0.490 | 0.699 |
+| CIC-IDS2017 + UNSW-NB15 | CSE-CIC-IDS2018 | 0.745 | 0.832 |
+| UNSW-NB15 + CSE-CIC-IDS2018 | CIC-IDS2017 | 0.942 | 0.977 |
+
+Every model scores 0.991–1.000 on its own networks' test data.
+
+- **Removing the shortcuts helps, but not much where it matters.** ROC-AUC on the unseen
+  network rises in 8 of 9 cases, by +0.01 to +0.25. The exception is CIC-IDS2017 to
+  CSE-CIC-IDS2018 (−0.08): those two testbeds were set up by the same lab, so the "shortcuts"
+  are shared knowledge between them. ROC-AUC averages over all thresholds, though, and a SOC
+  works at a low false-alarm rate. At 1% false alarms, even with the threshold re-chosen on
+  UNSW's own normal traffic, the best model still catches only **16.6%** of UNSW attacks
+  (9.4% with the shortcuts).
+- **Two networks don't fix it either.** Training on both CIC networks without the shortcuts
+  lifts UNSW's ROC-AUC from 0.49 to 0.70, but at 1% false alarms it catches **0.1%** of UNSW
+  attacks. The gain is entirely in the high-false-alarm region. With all features, adding a
+  second network made the unseen-network score *worse* in every case. Without the shortcuts,
+  it helped only for CSE-CIC-IDS2018 (0.743 → 0.832).
+- **Thresholds do not travel.** The training threshold gives 1% false alarms on its own
+  networks, but 0.1% to 95% on an unseen one. For example, the CIC-IDS2017 model at its own
+  threshold flags 95% of UNSW's benign traffic.
+- **New shortcuts replace the old.** Without the four features, each model still puts most
+  of its weight on one or two network-specific features: `rst_flag_count` 62% for
+  CIC-IDS2017, `bwd_packets_s` 47% for UNSW. A list of banned features can't remove a
+  dataset's artefacts; the model finds the next one.
+- **Sister networks do transfer.** Trained on UNSW + CSE-CIC-IDS2018 without the shortcuts
+  and re-thresholded on CIC-IDS2017's normal traffic, the model catches **81.9%** of
+  CIC-IDS2017 attacks at 1% false alarms. Same lab, same attack tools.
+- **Conclusion.** Neither fix makes a supervised flow classifier work on a genuinely
+  different network. The approach that did work in this project needs only the new
+  network's *normal* traffic: the autoencoder retrained on UNSW benign flows reaches ROC-AUC
+  0.914 (Module 2). Deployment on a new network therefore starts with a learning period on
+  its normal traffic, then supervised retraining on analyst-labelled alerts (Module 6).
 
 ## Module 2: anomaly detection (unknown attacks)
 

@@ -127,6 +127,17 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
 - Dashboard colours: one fixed colour per family (frontend/src/lib/palette.ts), validated
   all-pairs for colour-blind separation; status red is only for severity; "Unknown anomaly" grey.
 
+## Generalisation study (2026-10-21, `sentinel ids generalisation`, DVC `generalisation`)
+- Third network: CSE-CIC-IDS2018, DistriNet corrected release (10.4 GB zip, same features);
+  sampled per label per day file straight from the zip (150k cap) -> 2.02M flows.
+- Binary LightGBM, networks equally weighted, threshold from training networks' val.
+  Shortcut list fixed up front: dst_port, fwd/bwd_init_win_bytes, fwd_seg_size_min.
+- Removing shortcuts raises unseen ROC-AUC in 8/9 pairs, but CIC17 -> UNSW still catches only
+  16.6% at 1% FA (re-thresholded on UNSW benign). CIC17+CIC18 -> UNSW: AUC 0.49 -> 0.70 yet 0.1%
+  at 1% FA. Thresholds transfer badly (0.1-95% FA). Models find new shortcuts
+  (rst_flag_count 62% CIC17). Sister CIC networks do transfer (81.9% at 1% FA).
+- Report ROC-AUC *and* recall at 1% FA: AUC gains here were in the useless high-FA region.
+
 ## Module 5 notes
 - User has the Gemini free tier only: everything goes through `llm.factory.build_provider`
   (cache -> throttle -> Gemini, fallback Ollama `llama3.2:3b`). Free-tier prompts may be read by

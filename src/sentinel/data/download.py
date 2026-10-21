@@ -38,6 +38,28 @@ def download_cic_unsw_nb15(raw_dir: Path, url: str = CIC_UNSW_NB15_URL) -> Path:
     return target
 
 
+# Corrected CSE-CIC-IDS2018 from the same DistriNet release as CIC-IDS2017 (Liu et al.,
+# IEEE CNS 2022): same fixed CICFlowMeter, so the same features.
+CSECICIDS2018_IMPROVED_URL = (
+    "https://intrusion-detection.distrinet-research.be/CNS2022/Datasets/CSECICIDS2018_improved.zip"
+)
+
+
+def download_cic2018(raw_dir: Path, url: str = CSECICIDS2018_IMPROVED_URL) -> Path:
+    """The zip (10.4 GB) is kept as is; the study samples each CSV straight out of it."""
+    target = raw_dir / "CSECICIDS2018_improved.zip"
+    if target.exists():
+        log.info("%s already present; skipping download", target)
+        return target
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    partial = target.with_suffix(".part")
+    log.info("downloading %s (~10.4 GB)", url)
+    with urllib.request.urlopen(url) as resp, partial.open("wb") as out:
+        shutil.copyfileobj(resp, out, length=1 << 20)
+    partial.rename(target)
+    return target
+
+
 def download_cicids2017(raw_dir: Path, url: str = CICIDS2017_IMPROVED_URL) -> list[Path]:
     raw_dir.mkdir(parents=True, exist_ok=True)
     existing = sorted(raw_dir.glob("*.csv"))

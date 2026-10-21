@@ -271,3 +271,14 @@ mlops:
   max_live_rows: 200000
   retrain_timeout_minutes: 120  # a "running" run older than this died with its process
   metrics_port: 9103
+
+generalisation:
+  # Train on one or two networks, test on another (CIC-IDS2017, CIC-UNSW-NB15,
+  # CSE-CIC-IDS2018); caps per network so none dominates. See sentinel.ids.generalisation.
+  cic2018_per_label: 150000   # flows kept per label per day file of CSE-CIC-IDS2018
+  train_benign: 300000
+  train_attack: 300000        # spread evenly over the network's attack categories
+  val_benign: 100000
+  val_attack: 100000
+  test_benign: 300000
+  test_attack: 300000

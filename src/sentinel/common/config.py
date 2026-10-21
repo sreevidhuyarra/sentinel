@@ -294,6 +294,19 @@ class MlopsParams(BaseModel):
     metrics_port: int = 9103
 
 
+class GeneralisationParams(BaseModel):
+    """Cross-network study (sentinel.ids.generalisation). Row caps keep each network's
+    contribution equal and the 12 LightGBM fits within a laptop's memory and time."""
+
+    cic2018_per_label: int = Field(150_000, ge=1000)  # flows kept per label per day file
+    train_benign: int = Field(300_000, ge=1000)  # per network
+    train_attack: int = Field(300_000, ge=1000)  # per network, spread over its categories
+    val_benign: int = Field(100_000, ge=1000)
+    val_attack: int = Field(100_000, ge=1000)
+    test_benign: int = Field(300_000, ge=1000)
+    test_attack: int = Field(300_000, ge=1000)
+
+
 class Params(BaseModel):
     seed: int = 42
     data: DataParams
@@ -306,6 +319,7 @@ class Params(BaseModel):
     copilot: CopilotParams = CopilotParams()
     stream: StreamParams = StreamParams()
     mlops: MlopsParams = MlopsParams()
+    generalisation: GeneralisationParams = GeneralisationParams()
 
     def resolve(self, path: Path) -> Path:
         return path if path.is_absolute() else PROJECT_ROOT / path

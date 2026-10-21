@@ -1,0 +1,1441 @@
+{
+  "networks": {
+    "cic2017": {
+      "flows": 1839631,
+      "attack_share": 0.22042409591923598,
+      "test_flows": 367940
+    },
+    "unsw": {
+      "flows": 2606079,
+      "attack_share": 0.031029374013604345,
+      "test_flows": 521219
+    },
+    "cic2018": {
+      "flows": 2018324,
+      "attack_share": 0.38262885443566047,
+      "test_flows": 403674
+    }
+  },
+  "feature_sets": {
+    "shared": [
+      "dst_port",
+      "protocol",
+      "flow_duration",
+      "total_fwd_packet",
+      "total_bwd_packets",
+      "total_length_of_fwd_packet",
+      "total_length_of_bwd_packet",
+      "fwd_packet_length_max",
+      "fwd_packet_length_min",
+      "fwd_packet_length_mean",
+      "fwd_packet_length_std",
+      "bwd_packet_length_max",
+      "bwd_packet_length_min",
+      "bwd_packet_length_mean",
+      "bwd_packet_length_std",
+      "flow_bytes_s",
+      "flow_packets_s",
+      "flow_iat_mean",
+      "flow_iat_std",
+      "flow_iat_max",
+      "flow_iat_min",
+      "fwd_iat_total",
+      "fwd_iat_mean",
+      "fwd_iat_std",
+      "fwd_iat_max",
+      "fwd_iat_min",
+      "bwd_iat_total",
+      "bwd_iat_mean",
+      "bwd_iat_std",
+      "bwd_iat_max",
+      "bwd_iat_min",
+      "fwd_psh_flags",
+      "bwd_psh_flags",
+      "fwd_urg_flags",
+      "fwd_header_length",
+      "bwd_header_length",
+      "fwd_packets_s",
+      "bwd_packets_s",
+      "packet_length_min",
+      "packet_length_max",
+      "packet_length_mean",
+      "packet_length_std",
+      "packet_length_variance",
+      "fin_flag_count",
+      "syn_flag_count",
+      "rst_flag_count",
+      "psh_flag_count",
+      "ack_flag_count",
+      "urg_flag_count",
+      "cwr_flag_count",
+      "ece_flag_count",
+      "down_up_ratio",
+      "average_packet_size",
+      "fwd_segment_size_avg",
+      "bwd_segment_size_avg",
+      "fwd_bytes_bulk_avg",
+      "fwd_packet_bulk_avg",
+      "fwd_bulk_rate_avg",
+      "bwd_bytes_bulk_avg",
+      "bwd_packet_bulk_avg",
+      "bwd_bulk_rate_avg",
+      "subflow_fwd_packets",
+      "subflow_fwd_bytes",
+      "subflow_bwd_packets",
+      "subflow_bwd_bytes",
+      "fwd_init_win_bytes",
+      "bwd_init_win_bytes",
+      "fwd_act_data_pkts",
+      "fwd_seg_size_min",
+      "active_mean",
+      "active_std",
+      "active_max",
+      "active_min",
+      "idle_mean",
+      "idle_std",
+      "idle_max",
+      "idle_min",
+      "fwd_bwd_bytes_ratio",
+      "fwd_bwd_packets_ratio"
+    ],
+    "no_shortcuts": [
+      "protocol",
+      "flow_duration",
+      "total_fwd_packet",
+      "total_bwd_packets",
+      "total_length_of_fwd_packet",
+      "total_length_of_bwd_packet",
+      "fwd_packet_length_max",
+      "fwd_packet_length_min",
+      "fwd_packet_length_mean",
+      "fwd_packet_length_std",
+      "bwd_packet_length_max",
+      "bwd_packet_length_min",
+      "bwd_packet_length_mean",
+      "bwd_packet_length_std",
+      "flow_bytes_s",
+      "flow_packets_s",
+      "flow_iat_mean",
+      "flow_iat_std",
+      "flow_iat_max",
+      "flow_iat_min",
+      "fwd_iat_total",
+      "fwd_iat_mean",
+      "fwd_iat_std",
+      "fwd_iat_max",
+      "fwd_iat_min",
+      "bwd_iat_total",
+      "bwd_iat_mean",
+      "bwd_iat_std",
+      "bwd_iat_max",
+      "bwd_iat_min",
+      "fwd_psh_flags",
+      "bwd_psh_flags",
+      "fwd_urg_flags",
+      "fwd_header_length",
+      "bwd_header_length",
+      "fwd_packets_s",
+      "bwd_packets_s",
+      "packet_length_min",
+      "packet_length_max",
+      "packet_length_mean",
+      "packet_length_std",
+      "packet_length_variance",
+      "fin_flag_count",
+      "syn_flag_count",
+      "rst_flag_count",
+      "psh_flag_count",
+      "ack_flag_count",
+      "urg_flag_count",
+      "cwr_flag_count",
+      "ece_flag_count",
+      "down_up_ratio",
+      "average_packet_size",
+      "fwd_segment_size_avg",
+      "bwd_segment_size_avg",
+      "fwd_bytes_bulk_avg",
+      "fwd_packet_bulk_avg",
+      "fwd_bulk_rate_avg",
+      "bwd_bytes_bulk_avg",
+      "bwd_packet_bulk_avg",
+      "bwd_bulk_rate_avg",
+      "subflow_fwd_packets",
+      "subflow_fwd_bytes",
+      "subflow_bwd_packets",
+      "subflow_bwd_bytes",
+      "fwd_act_data_pkts",
+      "active_mean",
+      "active_std",
+      "active_max",
+      "active_min",
+      "idle_mean",
+      "idle_std",
+      "idle_max",
+      "idle_min",
+      "fwd_bwd_bytes_ratio",
+      "fwd_bwd_packets_ratio"
+    ]
+  },
+  "shortcuts": [
+    "dst_port",
+    "fwd_init_win_bytes",
+    "bwd_init_win_bytes",
+    "fwd_seg_size_min"
+  ],
+  "runs": [
+    {
+      "features": "shared",
+      "sources": [
+        "cic2017"
+      ],
+      "threshold": 0.00012209339847012694,
+      "trees": 229,
+      "top_features": [
+        {
+          "feature": "rst_flag_count",
+          "gain_share": 0.5802051963358289
+        },
+        {
+          "feature": "fwd_bwd_bytes_ratio",
+          "gain_share": 0.12552298842695106
+        },
+        {
+          "feature": "psh_flag_count",
+          "gain_share": 0.07573955759439044
+        },
+        {
+          "feature": "dst_port",
+          "gain_share": 0.05231935594634379
+        },
+        {
+          "feature": "bwd_packet_length_std",
+          "gain_share": 0.028660652361242107
+        },
+        {
+          "feature": "flow_duration",
+          "gain_share": 0.02046863506419025
+        },
+        {
+          "feature": "bwd_iat_total",
+          "gain_share": 0.016551185444247486
+        },
+        {
+          "feature": "bwd_psh_flags",
+          "gain_share": 0.012680904151826383
+        }
+      ],
+      "targets": {
+        "cic2017": {
+          "flows": 367940,
+          "roc_auc": 0.9999956033666448,
+          "pr_auc": 0.9999846686151601,
+          "benign_fpr": 0.007666481890159082,
+          "attack_recall": 0.9999506824318493,
+          "recall_at_1pct_fpr_target_threshold": 0.9999630118238869,
+          "per_category_recall": {
+            "Bot": 1.0,
+            "BruteForce": 1.0,
+            "DDoS": 1.0,
+            "DoS": 1.0,
+            "Infiltration": 1.0,
+            "PortScan": 0.9998480243161094,
+            "WebAttack": 1.0
+          }
+        },
+        "unsw": {
+          "flows": 316176,
+          "roc_auc": 0.6371579532434883,
+          "pr_auc": 0.15862321912704813,
+          "benign_fpr": 0.9502166666666667,
+          "attack_recall": 0.9927052423343224,
+          "recall_at_1pct_fpr_target_threshold": 0.09390454995054402,
+          "per_category_recall": {
+            "Analysis": 1.0,
+            "Backdoor": 1.0,
+            "DoS": 0.9861111111111112,
+            "Exploits": 0.9939983779399838,
+            "Fuzzers": 0.9977216631858743,
+            "Generic": 0.9454545454545454,
+            "Reconnaissance": 0.9991621281943862,
+            "Shellcode": 0.9826732673267327,
+            "Worms": 1.0
+          }
+        },
+        "cic2018": {
+          "flows": 370805,
+          "roc_auc": 0.8259641957876196,
+          "pr_auc": 0.764234551659062,
+          "benign_fpr": 0.1237927091065947,
+          "attack_recall": 0.6365737313923843,
+          "recall_at_1pct_fpr_target_threshold": 0.25996381281355374,
+          "per_category_recall": {
+            "botnet ares": 1.0,
+            "ddos hoic": 0.00014000373343289155,
+            "ddos loic http": 0.9531454172111257,
+            "ddos loic udp": 1.0,
+            "dos goldeneye": 0.8506233303650935,
+            "dos hulk": 0.020487212992346463,
+            "dos slowloris": 0.9994040524433849,
+            "infiltration communication victim attacker": 0.95,
+            "infiltration dropbox download": 0.0,
+            "infiltration nmap portscan": 0.9924190883467782,
+            "ssh bruteforce": 1.0,
+            "web attack brute force": 1.0,
+            "web attack sql": 0.75,
+            "web attack xss": 1.0
+          }
+        }
+      }
+    },
+    {
+      "features": "shared",
+      "sources": [
+        "unsw"
+      ],
+      "threshold": 0.9718295558435565,
+      "trees": 144,
+      "top_features": [
+        {
+          "feature": "fwd_seg_size_min",
+          "gain_share": 0.689554421097329
+        },
+        {
+          "feature": "bwd_packet_length_min",
+          "gain_share": 0.13472924914656867
+        },
+        {
+          "feature": "bwd_init_win_bytes",
+          "gain_share": 0.09638678888302792
+        },
+        {
+          "feature": "fwd_packet_length_min",
+          "gain_share": 0.009739497360466672
+        },
+        {
+          "feature": "bwd_packets_s",
+          "gain_share": 0.009518421153188098
+        },
+        {
+          "feature": "dst_port",
+          "gain_share": 0.008556681185465476
+        },
+        {
+          "feature": "bwd_header_length",
+          "gain_share": 0.008148129677735254
+        },
+        {
+          "feature": "total_length_of_bwd_packet",
+          "gain_share": 0.007194386185997164
+        }
+      ],
+      "targets": {
+        "cic2017": {
+          "flows": 367940,
+          "roc_auc": 0.3102137375906566,
+          "pr_auc": 0.1555226477044218,
+          "benign_fpr": 0.18329829552387628,
+          "attack_recall": 0.0053632855363902,
+          "recall_at_1pct_fpr_target_threshold": 0.0,
+          "per_category_recall": {
+            "Bot": 0.0,
+            "BruteForce": 0.0,
+            "DDoS": 0.0,
+            "DoS": 0.010012259910093992,
+            "Infiltration": 0.0,
+            "PortScan": 0.0034954407294832826,
+            "WebAttack": 0.0
+          }
+        },
+        "unsw": {
+          "flows": 316176,
+          "roc_auc": 0.995231290182987,
+          "pr_auc": 0.8973079623113955,
+          "benign_fpr": 0.011733333333333333,
+          "attack_recall": 0.8728363006923838,
+          "recall_at_1pct_fpr_target_threshold": 0.8495301681503462,
+          "per_category_recall": {
+            "Analysis": 0.25333333333333335,
+            "Backdoor": 0.8850574712643678,
+            "DoS": 0.9259259259259259,
+            "Exploits": 0.9552311435523114,
+            "Fuzzers": 0.7172963736472375,
+            "Generic": 0.9636363636363636,
+            "Reconnaissance": 0.9995810640971932,
+            "Shellcode": 0.6806930693069307,
+            "Worms": 1.0
+          }
+        },
+        "cic2018": {
+          "flows": 370805,
+          "roc_auc": 0.24237114647733005,
+          "pr_auc": 0.23528848779669137,
+          "benign_fpr": 0.09352968320526453,
+          "attack_recall": 0.00667818077144502,
+          "recall_at_1pct_fpr_target_threshold": 0.003997039230199852,
+          "per_category_recall": {
+            "botnet ares": 0.0,
+            "ddos hoic": 0.0,
+            "ddos loic http": 0.008166884450252007,
+            "ddos loic udp": 1.0,
+            "dos goldeneye": 0.0,
+            "dos hulk": 0.0,
+            "dos slowloris": 0.0,
+            "infiltration communication victim attacker": 0.0,
+            "infiltration dropbox download": 0.0,
+            "infiltration nmap portscan": 0.014675867431237244,
+            "ssh bruteforce": 0.0,
+            "web attack brute force": 0.0,
+            "web attack sql": 0.0,
+            "web attack xss": 0.0
+          }
+        }
+      }
+    },
+    {
+      "features": "shared",
+      "sources": [
+        "cic2018"
+      ],
+      "threshold": 8.954366373726414e-07,
+      "trees": 524,
+      "top_features": [
+        {
+          "feature": "fwd_init_win_bytes",
+          "gain_share": 0.32076546117903293
+        },
+        {
+          "feature": "dst_port",
+          "gain_share": 0.18061433245458325
+        },
+        {
+          "feature": "fwd_packet_length_mean",
+          "gain_share": 0.1345407968951736
+        },
+        {
+          "feature": "fwd_seg_size_min",
+          "gain_share": 0.059136107114265334
+        },
+        {
+          "feature": "ack_flag_count",
+          "gain_share": 0.04271959629830733
+        },
+        {
+          "feature": "fwd_segment_size_avg",
+          "gain_share": 0.039877623652899284
+        },
+        {
+          "feature": "ece_flag_count",
+          "gain_share": 0.037628056087915356
+        },
+        {
+          "feature": "fwd_bwd_bytes_ratio",
+          "gain_share": 0.030401913795608818
+        }
+      ],
+      "targets": {
+        "cic2017": {
+          "flows": 367940,
+          "roc_auc": 0.9711581450886558,
+          "pr_auc": 0.9053203771975353,
+          "benign_fpr": 0.22615249988669364,
+          "attack_recall": 0.9988410371484582,
+          "recall_at_1pct_fpr_target_threshold": 0.49603610045988633,
+          "per_category_recall": {
+            "Bot": 1.0,
+            "BruteForce": 0.9992581602373887,
+            "DDoS": 1.0,
+            "DoS": 1.0,
+            "Infiltration": 1.0,
+            "PortScan": 0.996466565349544,
+            "WebAttack": 1.0
+          }
+        },
+        "unsw": {
+          "flows": 316176,
+          "roc_auc": 0.2021021852332674,
+          "pr_auc": 0.030378598009598735,
+          "benign_fpr": 0.8473233333333333,
+          "attack_recall": 0.28727744807121663,
+          "recall_at_1pct_fpr_target_threshold": 0.004018298714144411,
+          "per_category_recall": {
+            "Analysis": 0.04,
+            "Backdoor": 0.3563218390804598,
+            "DoS": 0.36921296296296297,
+            "Exploits": 0.4202757502027575,
+            "Fuzzers": 0.19498765900892348,
+            "Generic": 0.4431818181818182,
+            "Reconnaissance": 0.03225806451612903,
+            "Shellcode": 0.5074257425742574,
+            "Worms": 0.0851063829787234
+          }
+        },
+        "cic2018": {
+          "flows": 370805,
+          "roc_auc": 0.9999975470142957,
+          "pr_auc": 0.9999949925897531,
+          "benign_fpr": 0.012097987681319342,
+          "attack_recall": 0.999983551278888,
+          "recall_at_1pct_fpr_target_threshold": 0.999983551278888,
+          "per_category_recall": {
+            "botnet ares": 1.0,
+            "ddos hoic": 1.0,
+            "ddos loic http": 1.0,
+            "ddos loic udp": 1.0,
+            "dos goldeneye": 1.0,
+            "dos hulk": 1.0,
+            "dos slowloris": 1.0,
+            "infiltration communication victim attacker": 1.0,
+            "infiltration dropbox download": 0.8823529411764706,
+            "infiltration nmap portscan": 1.0,
+            "ssh bruteforce": 1.0,
+            "web attack brute force": 1.0,
+            "web attack sql": 1.0,
+            "web attack xss": 1.0
+          }
+        }
+      }
+    },
+    {
+      "features": "shared",
+      "sources": [
+        "unsw",
+        "cic2018"
+      ],
+      "threshold": 0.9498194312453956,
+      "trees": 208,
+      "top_features": [
+        {
+          "feature": "fwd_init_win_bytes",
+          "gain_share": 0.3283267069609023
+        },
+        {
+          "feature": "total_fwd_packet",
+          "gain_share": 0.09007579050034058
+        },
+        {
+          "feature": "fwd_packet_length_max",
+          "gain_share": 0.06734559300883573
+        },
+        {
+          "feature": "bwd_packet_length_mean",
+          "gain_share": 0.06465963740560007
+        },
+        {
+          "feature": "bwd_init_win_bytes",
+          "gain_share": 0.06270621273722804
+        },
+        {
+          "feature": "fwd_iat_std",
+          "gain_share": 0.059042281687118614
+        },
+        {
+          "feature": "fwd_header_length",
+          "gain_share": 0.04300540154022162
+        },
+        {
+          "feature": "psh_flag_count",
+          "gain_share": 0.03622088750463111
+        }
+      ],
+      "targets": {
+        "cic2017": {
+          "flows": 367940,
+          "roc_auc": 0.9417576035670034,
+          "pr_auc": 0.8234357534961537,
+          "benign_fpr": 0.005606049513131334,
+          "attack_recall": 0.2288458456113529,
+          "recall_at_1pct_fpr_target_threshold": 0.36332252456631364,
+          "per_category_recall": {
+            "Bot": 0.007042253521126761,
+            "BruteForce": 0.0,
+            "DDoS": 0.0,
+            "DoS": 0.09883822756728355,
+            "Infiltration": 0.375,
+            "PortScan": 0.5764057750759879,
+            "WebAttack": 0.0
+          }
+        },
+        "unsw": {
+          "flows": 316176,
+          "roc_auc": 0.995180203078635,
+          "pr_auc": 0.8965582025316455,
+          "benign_fpr": 0.021043333333333334,
+          "attack_recall": 0.9424455984174085,
+          "recall_at_1pct_fpr_target_threshold": 0.8465628090999011,
+          "per_category_recall": {
+            "Analysis": 0.5333333333333333,
+            "Backdoor": 0.9195402298850575,
+            "DoS": 0.9490740740740741,
+            "Exploits": 0.975831305758313,
+            "Fuzzers": 0.8904499715207899,
+            "Generic": 0.9738636363636364,
+            "Reconnaissance": 0.9995810640971932,
+            "Shellcode": 0.7648514851485149,
+            "Worms": 1.0
+          }
+        },
+        "cic2018": {
+          "flows": 370805,
+          "roc_auc": 0.9999968026587612,
+          "pr_auc": 0.9999935772557559,
+          "benign_fpr": 5.216379431414642e-05,
+          "attack_recall": 0.9957480055925652,
+          "recall_at_1pct_fpr_target_threshold": 0.9999013076733284,
+          "per_category_recall": {
+            "botnet ares": 0.9999533320888557,
+            "ddos hoic": 0.9998599962665671,
+            "ddos loic http": 1.0,
+            "ddos loic udp": 0.9979423868312757,
+            "dos goldeneye": 0.9719501335707925,
+            "dos hulk": 0.9995333208885571,
+            "dos slowloris": 0.8492252681764004,
+            "infiltration communication victim attacker": 0.75,
+            "infiltration dropbox download": 0.0,
+            "infiltration nmap portscan": 0.9910584118961998,
+            "ssh bruteforce": 1.0,
+            "web attack brute force": 0.9615384615384616,
+            "web attack sql": 0.75,
+            "web attack xss": 0.9545454545454546
+          }
+        }
+      }
+    },
+    {
+      "features": "shared",
+      "sources": [
+        "cic2017",
+        "cic2018"
+      ],
+      "threshold": 3.273484178920694e-05,
+      "trees": 435,
+      "top_features": [
+        {
+          "feature": "syn_flag_count",
+          "gain_share": 0.26865752297338935
+        },
+        {
+          "feature": "fwd_act_data_pkts",
+          "gain_share": 0.17055809635474667
+        },
+        {
+          "feature": "dst_port",
+          "gain_share": 0.12079414610988473
+        },
+        {
+          "feature": "psh_flag_count",
+          "gain_share": 0.07532172451189484
+        },
+        {
+          "feature": "flow_duration",
+          "gain_share": 0.06181705727762195
+        },
+        {
+          "feature": "bwd_init_win_bytes",
+          "gain_share": 0.05163400446632547
+        },
+        {
+          "feature": "fwd_init_win_bytes",
+          "gain_share": 0.030239412327395167
+        },
+        {
+          "feature": "bwd_packet_length_min",
+          "gain_share": 0.02681859196275686
+        }
+      ],
+      "targets": {
+        "cic2017": {
+          "flows": 367940,
+          "roc_auc": 0.9999954560585368,
+          "pr_auc": 0.9999844127053554,
+          "benign_fpr": 0.00884486791966057,
+          "attack_recall": 0.9999260236477739,
+          "recall_at_1pct_fpr_target_threshold": 0.9999383530398116,
+          "per_category_recall": {
+            "Bot": 1.0,
+            "BruteForce": 0.9992581602373887,
+            "DDoS": 1.0,
+            "DoS": 1.0,
+            "Infiltration": 1.0,
+            "PortScan": 0.9998100303951368,
+            "WebAttack": 1.0
+          }
+        },
+        "unsw": {
+          "flows": 316176,
+          "roc_auc": 0.4898362717400263,
+          "pr_auc": 0.05596192176945196,
+          "benign_fpr": 0.8387066666666667,
+          "attack_recall": 0.8146636993076162,
+          "recall_at_1pct_fpr_target_threshold": 0.017124134520276953,
+          "per_category_recall": {
+            "Analysis": 0.9866666666666667,
+            "Backdoor": 0.8390804597701149,
+            "DoS": 0.8449074074074074,
+            "Exploits": 0.8566098945660989,
+            "Fuzzers": 0.763812416935637,
+            "Generic": 0.7670454545454546,
+            "Reconnaissance": 0.8060326770004189,
+            "Shellcode": 0.8935643564356436,
+            "Worms": 0.7872340425531915
+          }
+        },
+        "cic2018": {
+          "flows": 370805,
+          "roc_auc": 0.9999967992266504,
+          "pr_auc": 0.9999935991268807,
+          "benign_fpr": 0.008398370884577573,
+          "attack_recall": 0.9999506538366641,
+          "recall_at_1pct_fpr_target_threshold": 0.9999588781972202,
+          "per_category_recall": {
+            "botnet ares": 1.0,
+            "ddos hoic": 1.0,
+            "ddos loic http": 1.0,
+            "ddos loic udp": 1.0,
+            "dos goldeneye": 1.0,
+            "dos hulk": 1.0,
+            "dos slowloris": 1.0,
+            "infiltration communication victim attacker": 1.0,
+            "infiltration dropbox download": 0.6470588235294118,
+            "infiltration nmap portscan": 1.0,
+            "ssh bruteforce": 1.0,
+            "web attack brute force": 1.0,
+            "web attack sql": 1.0,
+            "web attack xss": 1.0
+          }
+        }
+      }
+    },
+    {
+      "features": "shared",
+      "sources": [
+        "cic2017",
+        "unsw"
+      ],
+      "threshold": 0.9496229820963685,
+      "trees": 196,
+      "top_features": [
+        {
+          "feature": "down_up_ratio",
+          "gain_share": 0.23086993757672297
+        },
+        {
+          "feature": "rst_flag_count",
+          "gain_share": 0.18274967279087448
+        },
+        {
+          "feature": "bwd_init_win_bytes",
+          "gain_share": 0.11759845292039454
+        },
+        {
+          "feature": "psh_flag_count",
+          "gain_share": 0.08888457264611742
+        },
+        {
+          "feature": "fwd_init_win_bytes",
+          "gain_share": 0.04747615722822498
+        },
+        {
+          "feature": "flow_duration",
+          "gain_share": 0.03048650476141903
+        },
+        {
+          "feature": "fwd_iat_min",
+          "gain_share": 0.03036559334513286
+        },
+        {
+          "feature": "dst_port",
+          "gain_share": 0.02649422289944419
+        }
+      ],
+      "targets": {
+        "cic2017": {
+          "flows": 367940,
+          "roc_auc": 0.999989097803017,
+          "pr_auc": 0.9999639734315423,
+          "benign_fpr": 6.972698399417082e-06,
+          "attack_recall": 0.9904570505628367,
+          "recall_at_1pct_fpr_target_threshold": 0.9999383530398116,
+          "per_category_recall": {
+            "Bot": 1.0,
+            "BruteForce": 0.9777448071216617,
+            "DDoS": 0.9988952601399337,
+            "DoS": 0.9850837760523089,
+            "Infiltration": 0.0,
+            "PortScan": 0.9923632218844984,
+            "WebAttack": 0.8636363636363636
+          }
+        },
+        "unsw": {
+          "flows": 316176,
+          "roc_auc": 0.9951740050074184,
+          "pr_auc": 0.8978130662836667,
+          "benign_fpr": 0.021113333333333335,
+          "attack_recall": 0.943311078140455,
+          "recall_at_1pct_fpr_target_threshold": 0.8451409495548962,
+          "per_category_recall": {
+            "Analysis": 0.6,
+            "Backdoor": 0.9080459770114943,
+            "DoS": 0.9594907407407407,
+            "Exploits": 0.975669099756691,
+            "Fuzzers": 0.8923485855325612,
+            "Generic": 0.9738636363636364,
+            "Reconnaissance": 1.0,
+            "Shellcode": 0.7425742574257426,
+            "Worms": 1.0
+          }
+        },
+        "cic2018": {
+          "flows": 370805,
+          "roc_auc": 0.7446669261606456,
+          "pr_auc": 0.6102051167437175,
+          "benign_fpr": 0.005846357562747026,
+          "attack_recall": 0.01755900978698906,
+          "recall_at_1pct_fpr_target_threshold": 0.017698823916440495,
+          "per_category_recall": {
+            "botnet ares": 0.00448011946985253,
+            "ddos hoic": 0.0,
+            "ddos loic http": 0.0,
+            "ddos loic udp": 0.0,
+            "dos goldeneye": 0.0004452359750667854,
+            "dos hulk": 0.0,
+            "dos slowloris": 0.7878426698450537,
+            "infiltration communication victim attacker": 0.0,
+            "infiltration dropbox download": 0.0,
+            "infiltration nmap portscan": 0.06949169015453396,
+            "ssh bruteforce": 0.0,
+            "web attack brute force": 0.0,
+            "web attack sql": 0.0,
+            "web attack xss": 0.0
+          }
+        }
+      }
+    },
+    {
+      "features": "no_shortcuts",
+      "sources": [
+        "cic2017"
+      ],
+      "threshold": 0.008039472603654577,
+      "trees": 122,
+      "top_features": [
+        {
+          "feature": "rst_flag_count",
+          "gain_share": 0.6179798831100384
+        },
+        {
+          "feature": "fwd_bwd_bytes_ratio",
+          "gain_share": 0.09721229489707771
+        },
+        {
+          "feature": "psh_flag_count",
+          "gain_share": 0.06893402405279084
+        },
+        {
+          "feature": "bwd_packet_length_std",
+          "gain_share": 0.030867175022644126
+        },
+        {
+          "feature": "flow_duration",
+          "gain_share": 0.027780379881826852
+        },
+        {
+          "feature": "bwd_psh_flags",
+          "gain_share": 0.02560765070692097
+        },
+        {
+          "feature": "bwd_packet_length_mean",
+          "gain_share": 0.011812034751449462
+        },
+        {
+          "feature": "fwd_psh_flags",
+          "gain_share": 0.010960579686384246
+        }
+      ],
+      "targets": {
+        "cic2017": {
+          "flows": 367940,
+          "roc_auc": 0.9998475425989937,
+          "pr_auc": 0.9996127941942561,
+          "benign_fpr": 0.007425923795379193,
+          "attack_recall": 0.9991739307334755,
+          "recall_at_1pct_fpr_target_threshold": 0.9992848952618146,
+          "per_category_recall": {
+            "Bot": 1.0,
+            "BruteForce": 0.9777448071216617,
+            "DDoS": 0.9988952601399337,
+            "DoS": 0.9999708097378714,
+            "Infiltration": 1.0,
+            "PortScan": 0.9994300911854104,
+            "WebAttack": 1.0
+          }
+        },
+        "unsw": {
+          "flows": 316176,
+          "roc_auc": 0.7116386540759972,
+          "pr_auc": 0.20974414471312552,
+          "benign_fpr": 0.5860866666666666,
+          "attack_recall": 0.8207220573689417,
+          "recall_at_1pct_fpr_target_threshold": 0.16561572700296737,
+          "per_category_recall": {
+            "Analysis": 1.0,
+            "Backdoor": 0.7931034482758621,
+            "DoS": 0.8587962962962963,
+            "Exploits": 0.8830494728304947,
+            "Fuzzers": 0.7917220429086766,
+            "Generic": 0.7920454545454545,
+            "Reconnaissance": 0.7360703812316716,
+            "Shellcode": 0.7054455445544554,
+            "Worms": 0.7872340425531915
+          }
+        },
+        "cic2018": {
+          "flows": 370805,
+          "roc_auc": 0.7426822517465926,
+          "pr_auc": 0.6342769337135455,
+          "benign_fpr": 0.05258110466865959,
+          "attack_recall": 0.4224607286783453,
+          "recall_at_1pct_fpr_target_threshold": 0.017509663623653263,
+          "per_category_recall": {
+            "botnet ares": 0.014280380810154937,
+            "ddos hoic": 0.00014000373343289155,
+            "ddos loic http": 0.9510920291207765,
+            "ddos loic udp": 0.0,
+            "dos goldeneye": 0.26669634906500445,
+            "dos hulk": 0.003826768713832369,
+            "dos slowloris": 0.99880810488677,
+            "infiltration communication victim attacker": 0.35,
+            "infiltration dropbox download": 0.058823529411764705,
+            "infiltration nmap portscan": 0.8584896491398581,
+            "ssh bruteforce": 1.0,
+            "web attack brute force": 1.0,
+            "web attack sql": 0.75,
+            "web attack xss": 1.0
+          }
+        }
+      }
+    },
+    {
+      "features": "no_shortcuts",
+      "sources": [
+        "unsw"
+      ],
+      "threshold": 0.9832140214494326,
+      "trees": 141,
+      "top_features": [
+        {
+          "feature": "bwd_packets_s",
+          "gain_share": 0.47021878021886565
+        },
+        {
+          "feature": "flow_iat_mean",
+          "gain_share": 0.13364282391281052
+        },
+        {
+          "feature": "psh_flag_count",
+          "gain_share": 0.1076663238136964
+        },
+        {
+          "feature": "fin_flag_count",
+          "gain_share": 0.07024002031497979
+        },
+        {
+          "feature": "packet_length_max",
+          "gain_share": 0.04033063229865085
+        },
+        {
+          "feature": "bwd_header_length",
+          "gain_share": 0.03621492717748705
+        },
+        {
+          "feature": "total_bwd_packets",
+          "gain_share": 0.02796360688259573
+        },
+        {
+          "feature": "bwd_packet_length_max",
+          "gain_share": 0.015995911928727534
+        }
+      ],
+      "targets": {
+        "cic2017": {
+          "flows": 367940,
+          "roc_auc": 0.42432034780678274,
+          "pr_auc": 0.18276641256551385,
+          "benign_fpr": 0.037443390404869735,
+          "attack_recall": 0.007656552455398424,
+          "recall_at_1pct_fpr_target_threshold": 0.002971383481080548,
+          "per_category_recall": {
+            "Bot": 0.0,
+            "BruteForce": 0.0,
+            "DDoS": 0.0,
+            "DoS": 0.017776869636289334,
+            "Infiltration": 0.0,
+            "PortScan": 0.0004559270516717325,
+            "WebAttack": 0.0
+          }
+        },
+        "unsw": {
+          "flows": 316176,
+          "roc_auc": 0.9914380408217938,
+          "pr_auc": 0.839117560954285,
+          "benign_fpr": 0.01082,
+          "attack_recall": 0.6882418397626113,
+          "recall_at_1pct_fpr_target_threshold": 0.6688921859545005,
+          "per_category_recall": {
+            "Analysis": 0.2,
+            "Backdoor": 0.5747126436781609,
+            "DoS": 0.7349537037037037,
+            "Exploits": 0.821735604217356,
+            "Fuzzers": 0.49952534649705715,
+            "Generic": 0.8693181818181818,
+            "Reconnaissance": 0.7126099706744868,
+            "Shellcode": 0.5816831683168316,
+            "Worms": 0.7446808510638298
+          }
+        },
+        "cic2018": {
+          "flows": 370805,
+          "roc_auc": 0.36716202358422145,
+          "pr_auc": 0.27701596583077664,
+          "benign_fpr": 0.0070661878297855266,
+          "attack_recall": 0.004523398305781725,
+          "recall_at_1pct_fpr_target_threshold": 0.008224360555966774,
+          "per_category_recall": {
+            "botnet ares": 0.0,
+            "ddos hoic": 0.0,
+            "ddos loic http": 0.0,
+            "ddos loic udp": 0.0,
+            "dos goldeneye": 0.0,
+            "dos hulk": 0.02566735112936345,
+            "dos slowloris": 0.0,
+            "infiltration communication victim attacker": 0.0,
+            "infiltration dropbox download": 0.0,
+            "infiltration nmap portscan": 0.0,
+            "ssh bruteforce": 0.0,
+            "web attack brute force": 0.0,
+            "web attack sql": 0.0,
+            "web attack xss": 0.0
+          }
+        }
+      }
+    },
+    {
+      "features": "no_shortcuts",
+      "sources": [
+        "cic2018"
+      ],
+      "threshold": 0.0011709727851355988,
+      "trees": 296,
+      "top_features": [
+        {
+          "feature": "fin_flag_count",
+          "gain_share": 0.1775421121883321
+        },
+        {
+          "feature": "packet_length_max",
+          "gain_share": 0.1588166157905482
+        },
+        {
+          "feature": "total_length_of_bwd_packet",
+          "gain_share": 0.11932214627580927
+        },
+        {
+          "feature": "bwd_packet_length_max",
+          "gain_share": 0.06923044718725432
+        },
+        {
+          "feature": "bwd_iat_max",
+          "gain_share": 0.05729067164778516
+        },
+        {
+          "feature": "average_packet_size",
+          "gain_share": 0.0385140990107529
+        },
+        {
+          "feature": "packet_length_mean",
+          "gain_share": 0.03416255800964523
+        },
+        {
+          "feature": "syn_flag_count",
+          "gain_share": 0.030366538979072197
+        }
+      ],
+      "targets": {
+        "cic2017": {
+          "flows": 367940,
+          "roc_auc": 0.9845431936228115,
+          "pr_auc": 0.922980486289568,
+          "benign_fpr": 0.0920849414119017,
+          "attack_recall": 0.9860554576053855,
+          "recall_at_1pct_fpr_target_threshold": 0.4653975612462549,
+          "per_category_recall": {
+            "Bot": 0.5563380281690141,
+            "BruteForce": 0.43026706231454004,
+            "DDoS": 0.9988952601399337,
+            "DoS": 0.9992994337089147,
+            "Infiltration": 1.0,
+            "PortScan": 0.9903115501519757,
+            "WebAttack": 1.0
+          }
+        },
+        "unsw": {
+          "flows": 316176,
+          "roc_auc": 0.45150658660979226,
+          "pr_auc": 0.05335799442720261,
+          "benign_fpr": 0.5217333333333334,
+          "attack_recall": 0.3551557863501484,
+          "recall_at_1pct_fpr_target_threshold": 0.03869930761622156,
+          "per_category_recall": {
+            "Analysis": 0.10666666666666667,
+            "Backdoor": 0.3333333333333333,
+            "DoS": 0.42592592592592593,
+            "Exploits": 0.40908353609083536,
+            "Fuzzers": 0.31479020315169925,
+            "Generic": 0.48295454545454547,
+            "Reconnaissance": 0.21952241307080017,
+            "Shellcode": 0.4628712871287129,
+            "Worms": 0.5106382978723404
+          }
+        },
+        "cic2018": {
+          "flows": 370805,
+          "roc_auc": 0.999976474150875,
+          "pr_auc": 0.999953975678957,
+          "benign_fpr": 0.009212928595790783,
+          "attack_recall": 0.9995065383666419,
+          "recall_at_1pct_fpr_target_threshold": 0.9995065383666419,
+          "per_category_recall": {
+            "botnet ares": 1.0,
+            "ddos hoic": 1.0,
+            "ddos loic http": 1.0,
+            "ddos loic udp": 1.0,
+            "dos goldeneye": 1.0,
+            "dos hulk": 1.0,
+            "dos slowloris": 0.9678188319427891,
+            "infiltration communication victim attacker": 0.975,
+            "infiltration dropbox download": 0.7058823529411765,
+            "infiltration nmap portscan": 1.0,
+            "ssh bruteforce": 1.0,
+            "web attack brute force": 1.0,
+            "web attack sql": 1.0,
+            "web attack xss": 1.0
+          }
+        }
+      }
+    },
+    {
+      "features": "no_shortcuts",
+      "sources": [
+        "unsw",
+        "cic2018"
+      ],
+      "threshold": 0.9719991079260257,
+      "trees": 390,
+      "top_features": [
+        {
+          "feature": "psh_flag_count",
+          "gain_share": 0.22560512112885958
+        },
+        {
+          "feature": "fwd_iat_std",
+          "gain_share": 0.16465239380592755
+        },
+        {
+          "feature": "fin_flag_count",
+          "gain_share": 0.06103289311867196
+        },
+        {
+          "feature": "rst_flag_count",
+          "gain_share": 0.05936883336790882
+        },
+        {
+          "feature": "fwd_psh_flags",
+          "gain_share": 0.039200079618517146
+        },
+        {
+          "feature": "fwd_bwd_packets_ratio",
+          "gain_share": 0.03796593235139587
+        },
+        {
+          "feature": "flow_iat_min",
+          "gain_share": 0.03463707691264226
+        },
+        {
+          "feature": "bwd_packets_s",
+          "gain_share": 0.033411390344731534
+        }
+      ],
+      "targets": {
+        "cic2017": {
+          "flows": 367940,
+          "roc_auc": 0.9774422106874362,
+          "pr_auc": 0.9386106781924665,
+          "benign_fpr": 0.0020116234882318284,
+          "attack_recall": 0.34140086552332105,
+          "recall_at_1pct_fpr_target_threshold": 0.819115489415217,
+          "per_category_recall": {
+            "Bot": 0.056338028169014086,
+            "BruteForce": 0.008160237388724036,
+            "DDoS": 0.8654847703719291,
+            "DoS": 0.0726545624379707,
+            "Infiltration": 0.0,
+            "PortScan": 0.3311550151975684,
+            "WebAttack": 0.6363636363636364
+          }
+        },
+        "unsw": {
+          "flows": 316176,
+          "roc_auc": 0.991214984235905,
+          "pr_auc": 0.834708828424151,
+          "benign_fpr": 0.021193333333333335,
+          "attack_recall": 0.8557121661721068,
+          "recall_at_1pct_fpr_target_threshold": 0.6710558852621167,
+          "per_category_recall": {
+            "Analysis": 0.28,
+            "Backdoor": 0.8390804597701149,
+            "DoS": 0.8506944444444444,
+            "Exploits": 0.9221411192214112,
+            "Fuzzers": 0.7626732485285741,
+            "Generic": 0.9295454545454546,
+            "Reconnaissance": 0.8873062421449518,
+            "Shellcode": 0.8217821782178217,
+            "Worms": 0.9148936170212766
+          }
+        },
+        "cic2018": {
+          "flows": 370805,
+          "roc_auc": 0.9999740942790314,
+          "pr_auc": 0.9999487004537609,
+          "benign_fpr": 6.420159300202637e-05,
+          "attack_recall": 0.9931079858540999,
+          "recall_at_1pct_fpr_target_threshold": 0.9985689612632618,
+          "per_category_recall": {
+            "botnet ares": 0.9977599402650738,
+            "ddos hoic": 0.9998133283554228,
+            "ddos loic http": 0.9992533134216912,
+            "ddos loic udp": 0.9979423868312757,
+            "dos goldeneye": 0.9788512911843277,
+            "dos hulk": 0.9991599775994027,
+            "dos slowloris": 0.799165673420739,
+            "infiltration communication victim attacker": 0.675,
+            "infiltration dropbox download": 0.0,
+            "infiltration nmap portscan": 0.9721061327631451,
+            "ssh bruteforce": 1.0,
+            "web attack brute force": 1.0,
+            "web attack sql": 0.75,
+            "web attack xss": 1.0
+          }
+        }
+      }
+    },
+    {
+      "features": "no_shortcuts",
+      "sources": [
+        "cic2017",
+        "cic2018"
+      ],
+      "threshold": 0.0018237049964828157,
+      "trees": 320,
+      "top_features": [
+        {
+          "feature": "syn_flag_count",
+          "gain_share": 0.26861904311776397
+        },
+        {
+          "feature": "fwd_act_data_pkts",
+          "gain_share": 0.1618916590633147
+        },
+        {
+          "feature": "fwd_psh_flags",
+          "gain_share": 0.0974771046082271
+        },
+        {
+          "feature": "psh_flag_count",
+          "gain_share": 0.09247704808269432
+        },
+        {
+          "feature": "bwd_packet_length_min",
+          "gain_share": 0.04984389044924214
+        },
+        {
+          "feature": "bwd_iat_mean",
+          "gain_share": 0.02973997310635996
+        },
+        {
+          "feature": "bwd_packet_length_max",
+          "gain_share": 0.026279396442533062
+        },
+        {
+          "feature": "total_length_of_bwd_packet",
+          "gain_share": 0.018801229685455435
+        }
+      ],
+      "targets": {
+        "cic2017": {
+          "flows": 367940,
+          "roc_auc": 0.9998367679587103,
+          "pr_auc": 0.999417386025636,
+          "benign_fpr": 0.00814759807971886,
+          "attack_recall": 0.9993958597901538,
+          "recall_at_1pct_fpr_target_threshold": 0.9996424476309074,
+          "per_category_recall": {
+            "Bot": 1.0,
+            "BruteForce": 0.9910979228486647,
+            "DDoS": 0.9995265400599715,
+            "DoS": 0.999474575281686,
+            "Infiltration": 1.0,
+            "PortScan": 0.9996200607902735,
+            "WebAttack": 1.0
+          }
+        },
+        "unsw": {
+          "flows": 316176,
+          "roc_auc": 0.6985652798384437,
+          "pr_auc": 0.17181485821805653,
+          "benign_fpr": 0.10935666666666667,
+          "attack_recall": 0.6044139465875371,
+          "recall_at_1pct_fpr_target_threshold": 0.0014218595450049456,
+          "per_category_recall": {
+            "Analysis": 1.0,
+            "Backdoor": 0.6781609195402298,
+            "DoS": 0.6666666666666666,
+            "Exploits": 0.605190592051906,
+            "Fuzzers": 0.5921777102715018,
+            "Generic": 0.5897727272727272,
+            "Reconnaissance": 0.5819019689987432,
+            "Shellcode": 0.7029702970297029,
+            "Worms": 0.5319148936170213
+          }
+        },
+        "cic2018": {
+          "flows": 370805,
+          "roc_auc": 0.9999567879757292,
+          "pr_auc": 0.9999149454322468,
+          "benign_fpr": 0.010324418674638364,
+          "attack_recall": 0.9993913973188585,
+          "recall_at_1pct_fpr_target_threshold": 0.9993913973188585,
+          "per_category_recall": {
+            "botnet ares": 1.0,
+            "ddos hoic": 1.0,
+            "ddos loic http": 1.0,
+            "ddos loic udp": 1.0,
+            "dos goldeneye": 1.0,
+            "dos hulk": 1.0,
+            "dos slowloris": 0.967222884386174,
+            "infiltration communication victim attacker": 0.925,
+            "infiltration dropbox download": 0.058823529411764705,
+            "infiltration nmap portscan": 1.0,
+            "ssh bruteforce": 1.0,
+            "web attack brute force": 1.0,
+            "web attack sql": 1.0,
+            "web attack xss": 1.0
+          }
+        }
+      }
+    },
+    {
+      "features": "no_shortcuts",
+      "sources": [
+        "cic2017",
+        "unsw"
+      ],
+      "threshold": 0.978543271242726,
+      "trees": 346,
+      "top_features": [
+        {
+          "feature": "down_up_ratio",
+          "gain_share": 0.22004069888229894
+        },
+        {
+          "feature": "rst_flag_count",
+          "gain_share": 0.16931736965316566
+        },
+        {
+          "feature": "psh_flag_count",
+          "gain_share": 0.12059209132618674
+        },
+        {
+          "feature": "fin_flag_count",
+          "gain_share": 0.07060413965625463
+        },
+        {
+          "feature": "flow_duration",
+          "gain_share": 0.04305463625471651
+        },
+        {
+          "feature": "fwd_bwd_packets_ratio",
+          "gain_share": 0.03769033589238716
+        },
+        {
+          "feature": "syn_flag_count",
+          "gain_share": 0.0292156322056157
+        },
+        {
+          "feature": "fwd_iat_min",
+          "gain_share": 0.025587335341027344
+        }
+      ],
+      "targets": {
+        "cic2017": {
+          "flows": 367940,
+          "roc_auc": 0.9997982475117708,
+          "pr_auc": 0.9992416538917136,
+          "benign_fpr": 0.0011539815851035271,
+          "attack_recall": 0.9892734289272196,
+          "recall_at_1pct_fpr_target_threshold": 0.9995684712786812,
+          "per_category_recall": {
+            "Bot": 0.9788732394366197,
+            "BruteForce": 0.9681008902077152,
+            "DDoS": 0.9988952601399337,
+            "DoS": 0.9844707805476093,
+            "Infiltration": 0.0,
+            "PortScan": 0.9901595744680851,
+            "WebAttack": 0.8181818181818182
+          }
+        },
+        "unsw": {
+          "flows": 316176,
+          "roc_auc": 0.9912520311984834,
+          "pr_auc": 0.834835320764561,
+          "benign_fpr": 0.016943333333333335,
+          "attack_recall": 0.8024233432245301,
+          "recall_at_1pct_fpr_target_threshold": 0.6734050445103857,
+          "per_category_recall": {
+            "Analysis": 0.24,
+            "Backdoor": 0.8045977011494253,
+            "DoS": 0.8043981481481481,
+            "Exploits": 0.8884022708840227,
+            "Fuzzers": 0.6817922916271122,
+            "Generic": 0.9159090909090909,
+            "Reconnaissance": 0.8328445747800587,
+            "Shellcode": 0.7301980198019802,
+            "Worms": 0.851063829787234
+          }
+        },
+        "cic2018": {
+          "flows": 370805,
+          "roc_auc": 0.8316484603170528,
+          "pr_auc": 0.6643077587852377,
+          "benign_fpr": 0.0005417009409545974,
+          "attack_recall": 0.015766099185788304,
+          "recall_at_1pct_fpr_target_threshold": 0.0179455547331195,
+          "per_category_recall": {
+            "botnet ares": 0.0,
+            "ddos hoic": 0.0,
+            "ddos loic http": 0.0,
+            "ddos loic udp": 0.0,
+            "dos goldeneye": 0.0002226179875333927,
+            "dos hulk": 0.0,
+            "dos slowloris": 0.7771156138259833,
+            "infiltration communication victim attacker": 0.0,
+            "infiltration dropbox download": 0.0,
+            "infiltration nmap portscan": 0.059480999125279425,
+            "ssh bruteforce": 0.0,
+            "web attack brute force": 0.0,
+            "web attack sql": 0.0,
+            "web attack xss": 0.0
+          }
+        }
+      }
+    }
+  ]
+}
