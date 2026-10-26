@@ -195,6 +195,10 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
   16% of PortScan beats the review flag — weakest spot. Dropping timing: 20.8% → 9.4%, −1.2 pt F1.
 
 ## Module 3 notes
+- Phishing verdict is three-way (2026-10-27): malicious (alert threshold 0.989) / suspicious
+  (text >= phishing.suspicious_threshold 0.5, or a link the URL model judges malicious) /
+  clean. Sentence ablation on test emails: business wording ("please find attached the
+  invoice") and links push toward legitimate; invoice fraud scores ~0.01 (needs new data).
 - Label 1 = phishing only for Nazario*, fraud for Nigerian*, spam elsewhere → `kind` column; report
   phishing recall separately (only ~1.5k true phishing emails).
 - transformers 5.x: load DeBERTa with `dtype=torch.float32` (checkpoint is fp16; default keeps it →

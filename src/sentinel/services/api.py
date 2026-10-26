@@ -8,7 +8,7 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 import polars as pl
 from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
@@ -230,8 +230,13 @@ class EmailReason(BaseModel):
 class EmailScore(BaseModel):
     is_malicious: bool  # text model flagged OR any scored URL flagged
     flagged_by: list[str]  # subset of ["text", "url"]
+    # malicious = an alert; suspicious = below the alert threshold but worth a look (text score
+    # in the review band, or a link the URL model judges malicious); clean = neither.
+    verdict: Literal["malicious", "suspicious", "clean"]
+    suspicious_because: list[str]  # why a non-malicious email is suspicious
     probability: float  # text model's P(phishing, fraud or spam)
     threshold: float
+    suspicious_threshold: float
     severity: str | None
     reasons: list[EmailReason]  # sentences that raised the text score
     urls: list[str]  # URLs found in the email plus those supplied
@@ -252,6 +257,7 @@ def create_app(
     copilot: Copilot | None = None,
     db: Engine | None = None,
     api_key: str | None = None,
+    suspicious_threshold: float | None = None,
 ) -> FastAPI:
     """`api_key` turns on HTTP Basic auth (see services.auth); serve passes SENTINEL_API_KEY."""
 
@@ -275,6 +281,12 @@ def create_app(
             app.state.url = url
             app.state.url_source = url_source if url else None
         app.state.copilot = copilot  # built on first investigation if None
+        if suspicious_threshold is None:
+            from sentinel.common.config import load_params
+
+            app.state.suspicious = load_params().phishing.suspicious_threshold
+        else:
+            app.state.suspicious = suspicious_threshold
         app.state.db = db
         yield
 
@@ -427,14 +439,35 @@ def create_app(
         )
         flagged_by = [name for name, hit in (("text", text_flag), ("url", url_flag)) if hit]
         strong = prob >= 0.999 or any(r.probability >= 0.99 for r in url_results)
-        reasons = explain(ph, text) if email.explain and text_flag else []
+        review = float(request.app.state.suspicious)
+        because: list[str] = []
+        if not flagged_by:
+            # The alert thresholds are strict (0.31% false alarms on legitimate mail), so
+            # near-misses and bad links go to review instead of passing as clean.
+            if prob >= review:
+                because.append(
+                    f"text score {prob:.3f} is in the review band "
+                    f"({review:.2f} to {ph.threshold:.3f})"
+                )
+            because += [
+                f"link judged malicious ({r.probability:.3f}): {r.url}"
+                for r in url_results
+                if r.is_malicious
+            ]
+        verdict = "malicious" if flagged_by else "suspicious" if because else "clean"
+        reasons = explain(ph, text) if email.explain and (text_flag or prob >= review) else []
         return EmailScore(
             is_malicious=bool(flagged_by),
             flagged_by=flagged_by,
+            verdict=verdict,
+            suspicious_because=because,
             probability=prob,
             threshold=ph.threshold,
+            suspicious_threshold=review,
             severity=("High" if strong or len(flagged_by) == 2 else "Medium")
             if flagged_by
+            else "Low"
+            if because
             else None,
             reasons=[EmailReason(**r) for r in reasons],
             urls=urls,

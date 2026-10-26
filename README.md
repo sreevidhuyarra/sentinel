@@ -418,6 +418,23 @@ probability, severity, the URLs found, and the sentences whose removal most lowe
 score, e.g. *"Dear customer,"* and *"Urgent: your account has been suspended"* for a
 credential-phishing email (~200 ms with explanation).
 
+**Three-way verdict.** The alert threshold is strict, so `verdict` is one of three values:
+- `malicious`: an alert, as before (`is_malicious`).
+- `suspicious` (severity Low, for review): the text score falls between
+  `phishing.suspicious_threshold` (0.5) and the alert threshold, or a link in the email is
+  one the URL checker judges malicious. `suspicious_because` says which.
+- `clean`: neither.
+
+On the test split, the review band adds 3.7% of legitimate mail and lifts phishing caught
+from 77.7% to 93.2%. A hand-written test email shows the gap it closes: *"Urgent: Your
+account has been suspended… verify your identity… [link]"* scores 0.964, under the 0.989
+alert threshold, and its link scores 1.000. It used to pass as legitimate and is now
+suspicious. A blind spot remains: an invoice-fraud email ("Please find attached the overdue
+invoice… complete the payment today") scores 0.014. Everyday business wording is what
+legitimate training mail looks like, and only about 1,500 of the 200k training emails are
+true phishing. Fixing that needs modern phishing and invoice-fraud data, not a different
+threshold.
+
 ### URL classifier
 
 `uv run dvc repro train_url` trains character 3–5-gram TF-IDF (on normalised URLs) plus 23

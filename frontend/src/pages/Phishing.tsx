@@ -6,8 +6,11 @@ import { api, pct } from "../lib/api";
 type Result = {
   is_malicious: boolean;
   flagged_by: string[];
+  verdict: "malicious" | "suspicious" | "clean";
+  suspicious_because: string[];
   probability: number;
   threshold: number;
+  suspicious_threshold: number;
   severity: string | null;
   reasons: Array<{ text: string; contribution: number }>;
   urls: string[];
@@ -26,6 +29,12 @@ function highlight(body: string, reasons: Result["reasons"]) {
   }
   return parts.map((p, i) => (p.hit ? <mark key={i} className="rounded bg-[#fab219]/40 px-0.5 text-ink">{p.text}</mark> : <span key={i}>{p.text}</span>));
 }
+
+const VERDICT: Record<Result["verdict"], string> = {
+  malicious: "Malicious",
+  suspicious: "Suspicious: review",
+  clean: "Looks legitimate",
+};
 
 export default function Phishing() {
   const [subject, setSubject] = useState("");
@@ -51,9 +60,16 @@ export default function Phishing() {
       {r && (
         <div className="grid gap-4 lg:grid-cols-3">
           <Card title="Verdict">
-            <div className="text-2xl font-semibold">{r.is_malicious ? "Malicious" : "Looks legitimate"}</div>
-            <div className="mt-1 text-sm text-ink-2">P(malicious) {pct(r.probability, 2)} · threshold {pct(r.threshold, 1)}</div>
+            <div className="text-2xl font-semibold">{VERDICT[r.verdict]}</div>
+            <div className="mt-1 text-sm text-ink-2">
+              P(malicious) {pct(r.probability, 2)} · alert at {pct(r.threshold, 1)} · review from {pct(r.suspicious_threshold, 0)}
+            </div>
             <div className="mt-2 flex items-center gap-2 text-sm"><SeverityBadge level={r.severity} /> {r.flagged_by.length ? `flagged by ${r.flagged_by.join(" + ")}` : ""}</div>
+            {r.suspicious_because.length > 0 && (
+              <ul className="mt-2 list-disc pl-5 text-xs text-ink-2">
+                {r.suspicious_because.map((b) => <li key={b} className="break-all">{b}</li>)}
+              </ul>
+            )}
           </Card>
           <Card title="Evidence in the text" className="lg:col-span-2">
             <div className="whitespace-pre-wrap text-sm leading-6">{highlight(body, r.reasons)}</div>

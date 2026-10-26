@@ -127,6 +127,8 @@ class PhishingParams(BaseModel):
     url_fpr_budget: float = Field(0.01, gt=0, lt=1)
     url_max_features: int = Field(50_000, ge=1000)
     url_email_extra_fpr: float = Field(0.005, ge=0, lt=1)
+    # Below the alert threshold but at or above this, an email is "suspicious" (for review).
+    suspicious_threshold: float = Field(0.5, gt=0, lt=1)
 
 
 class AdversarialParams(BaseModel):

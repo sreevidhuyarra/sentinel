@@ -159,6 +159,7 @@ def test_score_phishing_endpoint(client: TestClient) -> None:
     assert r.status_code == 200
     body = r.json()
     assert body["is_malicious"] is True and body["severity"] in ("Medium", "High")
+    assert body["verdict"] == "malicious" and body["suspicious_because"] == []
     assert body["urls"] == ["http://bank.example/login", "http://extra.example"]
     assert body["model_version"] == "test"
     assert client.get("/health").json()["phishing_model_loaded"] is True
@@ -197,3 +198,44 @@ def test_score_phishing_validation_and_unavailable(client: TestClient) -> None:
     with TestClient(app) as c:
         assert c.post("/score/phishing", json={"body": "hello"}).status_code == 503
         assert c.post("/score/url", json={"urls": ["http://a.b"]}).status_code == 503
+
+
+def _review_client(bundle: Path, url_model: UrlModel, review: float) -> TestClient:
+    """Text alerts off (threshold 1), links never flag the email (as deployed), review band
+    starting at `review`."""
+    import copy
+
+    ph = PhishingOnnxModel.load(bundle)
+    ph.threshold = 1.0
+    um = copy.copy(url_model)
+    um.email_threshold = None
+    app = create_app(
+        bundle=object(),  # type: ignore[arg-type]
+        phishing=ph,
+        phishing_source="test",
+        url=um,
+        url_source="url-test",
+        suspicious_threshold=review,
+    )
+    return TestClient(app)
+
+
+def test_near_miss_text_score_is_suspicious_not_clean(bundle: Path, url_model: UrlModel) -> None:
+    with _review_client(bundle, url_model, review=0.0) as c:
+        body = c.post("/score/phishing", json={"body": "meeting notes attached thanks"}).json()
+    assert body["is_malicious"] is False and body["verdict"] == "suspicious"
+    assert body["severity"] == "Low" and "review band" in body["suspicious_because"][0]
+    assert body["suspicious_threshold"] == 0.0
+
+
+def test_malicious_link_makes_email_suspicious(bundle: Path, url_model: UrlModel) -> None:
+    with _review_client(bundle, url_model, review=1.0) as c:
+        bad = c.post(
+            "/score/phishing",
+            json={"body": "Verify at http://secure-login-9.xyz/account/verify.php?id=1"},
+        ).json()
+        good = c.post("/score/phishing", json={"body": "See https://www.company8.com/about"}).json()
+    assert bad["is_malicious"] is False and bad["verdict"] == "suspicious"
+    [why] = bad["suspicious_because"]  # only the link: review band is off (starts at 1.0)
+    assert why.startswith("link judged malicious") and "secure-login-9.xyz" in why
+    assert good["verdict"] == "clean" and good["severity"] is None
