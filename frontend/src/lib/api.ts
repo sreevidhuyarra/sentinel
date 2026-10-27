@@ -83,7 +83,7 @@ export const api = {
   related: (id: number) => call<Record<string, unknown> & { count: number; sample: Alert[] }>(`/alerts/${id}/related`),
   investigate: (id: number) => call<Report>(`/copilot/investigate/${id}`, { method: "POST" }),
   report: (id: string) => call<Report>(`/reports/${id}`),
-  phishing: (body: { subject: string; body: string; urls: string[] }) =>
+  phishing: (body: { subject: string; body: string; urls: string[]; sender?: string; reply_to?: string; eml?: string }) =>
     call<Record<string, unknown>>(`/score/phishing`, { method: "POST", body: JSON.stringify({ ...body, explain: true }) }),
   models: () => call<Record<string, unknown>>(`/models`),
   drift: () =>

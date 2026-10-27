@@ -268,6 +268,51 @@ def test_api_alerts_investigate_and_reports(db: dict[str, Any], retriever: Retri
         assert c.post("/copilot/investigate/999999").status_code == 404
 
 
+def test_concurrent_investigations_of_one_alert_share_a_run(
+    db: dict[str, Any], retriever: Retriever
+) -> None:
+    """A double click must not spend a second LLM call (the free tier allows few a day)."""
+    import threading
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    from fastapi.testclient import TestClient
+
+    from sentinel.services.api import create_app
+
+    first = db["ids"][0]
+    gate = threading.Event()
+
+    class SlowLLM(ScriptedLLM):
+        def generate(
+            self, system: str, prompt: str, schema: Any = None, temperature: float = 0.0
+        ) -> LLMResponse:
+            gate.wait(10)
+            return super().generate(system, prompt, schema, temperature)
+
+    llm = SlowLLM([_draft("T1110.001", [first], "192.168.10.50")])  # one answer only
+    writer = make_engine(f"sqlite:///{db['path'].as_posix()}")
+    app = create_app(
+        bundle=object(),  # type: ignore[arg-type]
+        copilot=_copilot(db, retriever, llm),
+        db=writer,
+    )
+    url = f"/copilot/investigate/{first}"
+    with TestClient(app) as c, ThreadPoolExecutor(2) as pool:
+        a = pool.submit(c.post, url)
+        deadline = time.monotonic() + 10
+        while first not in app.state.investigations and time.monotonic() < deadline:
+            time.sleep(0.01)
+        b = pool.submit(c.post, url)
+        time.sleep(0.3)  # the second request reaches the wait
+        gate.set()
+        ra, rb = a.result(timeout=30), b.result(timeout=30)
+        assert ra.status_code == rb.status_code == 200, (ra.text, rb.text)
+        assert ra.json()["report_id"] == rb.json()["report_id"]
+        assert len(llm.prompts) == 1 and not app.state.investigations
+        assert c.post("/copilot/investigate/999999").status_code == 404  # errors still raise
+
+
 def test_verify_requires_attacker_and_target_and_rejects_invented_ips(
     db: dict[str, Any], retriever: Retriever
 ) -> None:

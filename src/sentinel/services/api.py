@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 import time
 from collections.abc import AsyncIterator, Callable
+from concurrent.futures import Future
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,8 +16,9 @@ import polars as pl
 from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse, RedirectResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import Engine, func, insert, select
+from sqlalchemy.exc import SQLAlchemyError
 
 from sentinel.anomaly.bundle import AnomalyBundle
 from sentinel.common.config import PROJECT_ROOT, get_settings
@@ -29,6 +32,15 @@ from sentinel.detection.fusion import Detector, load_review_delta
 from sentinel.ids.bundle import IDSBundle
 from sentinel.phishing.explain import explain
 from sentinel.phishing.export import PhishingOnnxModel
+from sentinel.phishing.sender import (
+    Role,
+    Sender,
+    check_sender,
+    load_policy,
+    parse_eml,
+    parse_sender,
+    role_of,
+)
 from sentinel.phishing.text import extract_urls, model_input
 from sentinel.phishing.urls import UrlModel
 from sentinel.services.auth import authorized, protect
@@ -140,6 +152,7 @@ def load_production_models() -> Models:
 
 
 MAX_EMAIL_URLS = 20
+SENDER_POLICY = PROJECT_ROOT / "models" / "phishing" / "sender_policy.json"
 FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
 WS_POLL_SECONDS = 1.0
 WS_MAX_BATCH = 200
@@ -172,6 +185,33 @@ def _db_engine(app: Any) -> Engine:
         app.state.db = engine_
     engine: Engine = app.state.db
     return engine
+
+
+def _get_copilot(app: Any) -> Copilot:
+    """The app's copilot, built on first use. Loading its models takes minutes on a laptop
+    (DeBERTa guard, embedder, re-ranker), so the lock makes a request that arrives during the
+    startup warm-up wait for it instead of loading a second copy."""
+    with app.state.copilot_lock:
+        if app.state.copilot is None:
+            from sentinel.common.config import load_params
+            from sentinel.copilot.service import build_copilot
+
+            app.state.copilot = build_copilot(load_params(), interactive=True)
+        c: Copilot = app.state.copilot
+        return c
+
+
+def _warm_copilot(app: Any) -> None:
+    """Load the copilot and run each model once, so the first investigation is not slow."""
+    t0 = time.perf_counter()
+    try:
+        c = _get_copilot(app)
+        c.guard.scan("Warm-up text for the prompt-injection guard.")
+        c.retriever.search("port scan from one host", k=1)
+    except Exception as exc:  # the first investigation will retry and report the error
+        log.warning("copilot warm-up failed: %s", exc)
+        return
+    log.info("copilot ready in %.0f s", time.perf_counter() - t0)
 
 
 class UrlReason(BaseModel):
@@ -217,9 +257,36 @@ def score_urls(model: UrlModel, urls: list[str], explain_hits: bool) -> list[Url
 
 class EmailIn(BaseModel):
     subject: str = ""
-    body: str = Field(min_length=1, max_length=200_000)
+    body: str = Field("", max_length=200_000)
+    sender: str = Field("", max_length=1000)  # From line: 'PayPal <service@paypal.com>'
+    reply_to: str = Field("", max_length=1000)
+    # The whole message (.eml). When given, subject, body, sender, Reply-To and the receiving
+    # server's SPF/DKIM/DMARC results are read from it; attachments are never opened.
+    eml: str | None = Field(None, max_length=5_000_000)
     urls: list[str] = Field(default_factory=list, max_length=500)
     explain: bool = True
+
+    @model_validator(mode="after")
+    def _has_content(self) -> EmailIn:
+        if not self.body.strip() and not self.eml:
+            raise ValueError("give the email body or the raw .eml")
+        return self
+
+
+class SenderFinding(BaseModel):
+    check: str
+    severity: str  # high / medium / low: how strongly it points at phishing
+    role: str  # alert / review / ignore: what it does to the verdict (measured)
+    text: str
+
+
+class SenderReport(BaseModel):
+    from_line: str
+    address: str
+    domain: str
+    reply_to: str
+    auth: dict[str, str]  # spf/dkim/dmarc results, from the .eml only
+    findings: list[SenderFinding]
 
 
 class EmailReason(BaseModel):
@@ -228,8 +295,8 @@ class EmailReason(BaseModel):
 
 
 class EmailScore(BaseModel):
-    is_malicious: bool  # text model flagged OR any scored URL flagged
-    flagged_by: list[str]  # subset of ["text", "url"]
+    is_malicious: bool  # text model, a link or an alert-level sender check flagged it
+    flagged_by: list[str]  # subset of ["text", "url", "sender"]
     # malicious = an alert; suspicious = below the alert threshold but worth a look (text score
     # in the review band, or a link the URL model judges malicious); clean = neither.
     verdict: Literal["malicious", "suspicious", "clean"]
@@ -241,6 +308,8 @@ class EmailScore(BaseModel):
     reasons: list[EmailReason]  # sentences that raised the text score
     urls: list[str]  # URLs found in the email plus those supplied
     url_results: list[UrlScore]  # first 20 URLs, when the URL model is loaded
+    sender: SenderReport | None  # when a From line or .eml was given
+    subject: str  # as scored (read from the .eml when one was given)
     model_version: str | None
     url_model_version: str | None
 
@@ -258,8 +327,16 @@ def create_app(
     db: Engine | None = None,
     api_key: str | None = None,
     suspicious_threshold: float | None = None,
+    warm_copilot: bool | None = None,
+    sender_policy: dict[str, Role] | None = None,
 ) -> FastAPI:
-    """`api_key` turns on HTTP Basic auth (see services.auth); serve passes SENTINEL_API_KEY."""
+    """`api_key` turns on HTTP Basic auth (see services.auth); serve passes SENTINEL_API_KEY.
+
+    `warm_copilot` (default: on when the models come from the registry) builds the copilot
+    in a background thread at startup; otherwise it is built on the first investigation.
+    """
+    if warm_copilot is None:
+        warm_copilot = bundle is None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -280,13 +357,24 @@ def create_app(
             app.state.phishing_source = phishing_source if phishing else None
             app.state.url = url
             app.state.url_source = url_source if url else None
-        app.state.copilot = copilot  # built on first investigation if None
+        app.state.copilot = copilot
+        app.state.copilot_lock = threading.Lock()
+        app.state.investigations = {}  # alert id -> Future of the running investigation
+        app.state.investigations_lock = threading.Lock()
+        if copilot is None and warm_copilot:
+            # Built in the background: the API serves scoring and alerts meanwhile.
+            threading.Thread(target=_warm_copilot, args=(app,), daemon=True).start()
         if suspicious_threshold is None:
             from sentinel.common.config import load_params
 
             app.state.suspicious = load_params().phishing.suspicious_threshold
         else:
             app.state.suspicious = suspicious_threshold
+        app.state.sender_policy = (
+            load_policy(SENDER_POLICY) if sender_policy is None else sender_policy
+        )
+        if not app.state.sender_policy:
+            log.warning("no %s: sender checks can only mark email suspicious", SENDER_POLICY)
         app.state.db = db
         yield
 
@@ -308,23 +396,29 @@ def create_app(
             await ws.close(code=1008)  # policy violation: the HTTP middleware skips WebSockets
             return
         await ws.accept()
-        engine = _db_engine(ws.app)
         since = ws.query_params.get("since_id")
-        with engine.connect() as conn:
-            last = (
-                int(since)
-                if since
-                else int(conn.execute(select(func.max(alerts_table.c.id))).scalar() or 0)
-            )
-        try:
-            while True:
-                with engine.connect() as conn:
-                    rows = conn.execute(
+
+        # Database calls run in worker threads: a slow or stopped database must not block
+        # the event loop, which serves every other request too.
+        def newest() -> int:
+            with _db_engine(ws.app).connect() as conn:
+                return int(conn.execute(select(func.max(alerts_table.c.id))).scalar() or 0)
+
+        def after(last: int) -> list[Any]:
+            with _db_engine(ws.app).connect() as conn:
+                return list(
+                    conn.execute(
                         select(*[alerts_table.c[c] for c in WS_COLUMNS])
                         .where(alerts_table.c.id > last)
                         .order_by(alerts_table.c.id)
                         .limit(WS_MAX_BATCH)
                     ).all()
+                )
+
+        try:
+            last = int(since) if since else await asyncio.to_thread(newest)
+            while True:
+                rows = await asyncio.to_thread(after, last)
                 if rows:
                     last = int(rows[-1][0])
                     await ws.send_json(
@@ -338,6 +432,9 @@ def create_app(
                 await asyncio.sleep(WS_POLL_SECONDS)
         except WebSocketDisconnect:
             return
+        except SQLAlchemyError as exc:  # the client reconnects and resumes
+            log.warning("alert feed closed: database error: %s", exc)
+            await ws.close(code=1011)
 
     @app.get("/", include_in_schema=False)
     def root() -> RedirectResponse:
@@ -424,10 +521,22 @@ def create_app(
         ph: PhishingOnnxModel | None = request.app.state.phishing
         if ph is None:
             raise HTTPException(503, detail="phishing model not loaded")
-        text = model_input(email.subject, email.body)
+        subject, body = email.subject, email.body
+        who: Sender | None = None
+        if email.eml:
+            try:
+                parsed = parse_eml(email.eml.encode("utf-8", "surrogateescape"))
+            except Exception as exc:  # malformed message
+                raise HTTPException(422, detail=f"could not read the .eml: {exc}") from None
+            subject, body, who = parsed.subject, parsed.body, parsed.sender
+            if not body.strip() and not subject.strip():
+                raise HTTPException(422, detail="the .eml has no readable text part")
+        else:
+            who = parse_sender(email.sender, email.reply_to) if email.sender else None
+        text = model_input(subject, body)
         prob = float(ph.predict_proba([text])[0])
         text_flag = prob >= ph.threshold
-        urls = list(dict.fromkeys([*extract_urls(f"{email.subject}\n{email.body}"), *email.urls]))
+        urls = list(dict.fromkeys([*extract_urls(f"{subject}\n{body}"), *email.urls]))
         um: UrlModel | None = request.app.state.url
         url_results = score_urls(um, urls[:MAX_EMAIL_URLS], email.explain) if um else []
         # A link flags the email only above the validation-tuned email threshold; the
@@ -437,7 +546,23 @@ def create_app(
             and um.email_threshold is not None
             and any(r.probability >= um.email_threshold for r in url_results)
         )
-        flagged_by = [name for name, hit in (("text", text_flag), ("url", url_flag)) if hit]
+        policy = request.app.state.sender_policy
+        findings = (
+            [
+                SenderFinding(
+                    check=f.check, severity=f.severity, role=role_of(f.check, policy), text=f.text
+                )
+                for f in check_sender(who)
+            ]
+            if who is not None
+            else []
+        )
+        sender_flag = any(f.role == "alert" for f in findings)
+        flagged_by = [
+            name
+            for name, hit in (("text", text_flag), ("url", url_flag), ("sender", sender_flag))
+            if hit
+        ]
         strong = prob >= 0.999 or any(r.probability >= 0.99 for r in url_results)
         review = float(request.app.state.suspicious)
         because: list[str] = []
@@ -454,6 +579,7 @@ def create_app(
                 for r in url_results
                 if r.is_malicious
             ]
+            because += [f"sender: {f.text}" for f in findings if f.role == "review"]
         verdict = "malicious" if flagged_by else "suspicious" if because else "clean"
         reasons = explain(ph, text) if email.explain and (text_flag or prob >= review) else []
         return EmailScore(
@@ -472,21 +598,23 @@ def create_app(
             reasons=[EmailReason(**r) for r in reasons],
             urls=urls,
             url_results=url_results,
+            sender=SenderReport(
+                from_line=who.from_,
+                address=who.address,
+                domain=who.registered,
+                reply_to=who.reply_to,
+                auth=who.auth,
+                findings=findings,
+            )
+            if who is not None
+            else None,
+            subject=subject,
             model_version=request.app.state.phishing_source,
             url_model_version=request.app.state.url_source,
         )
 
     def _db(request: Request) -> Engine:
         return _db_engine(request.app)
-
-    def _copilot(request: Request) -> Copilot:
-        if request.app.state.copilot is None:
-            from sentinel.common.config import load_params
-            from sentinel.copilot.service import build_copilot
-
-            request.app.state.copilot = build_copilot(load_params())
-        c: Copilot = request.app.state.copilot
-        return c
 
     @app.get("/alerts")
     def list_alerts(
@@ -518,12 +646,37 @@ def create_app(
 
     @app.post("/copilot/investigate/{alert_id}", response_model=IncidentReport)
     def investigate(alert_id: int, request: Request) -> IncidentReport:
-        """Run the investigation graph (seconds with Gemini, minutes on the local model)."""
+        """Run the investigation graph (seconds with Gemini, minutes on the local model).
+
+        A second request for an alert already being investigated (a double click, another
+        tab) waits for that run and gets the same report instead of starting another one.
+        """
+        state = request.app.state
+        with state.investigations_lock:
+            running: Future[IncidentReport] | None = state.investigations.get(alert_id)
+            if running is None:
+                mine: Future[IncidentReport] = Future()
+                state.investigations[alert_id] = mine
+        if running is not None:
+            return running.result()
+        try:
+            report = _investigate(alert_id, request)
+        except BaseException as exc:
+            mine.set_exception(exc)
+            raise
+        else:
+            mine.set_result(report)
+            return report
+        finally:
+            with state.investigations_lock:
+                state.investigations.pop(alert_id, None)
+
+    def _investigate(alert_id: int, request: Request) -> IncidentReport:
         from sentinel.copilot.graph import AlertNotFoundError
 
         t0 = time.perf_counter()
         try:
-            report, trace = _copilot(request).investigate(alert_id)
+            report, trace = _get_copilot(request.app).investigate(alert_id)
         except AlertNotFoundError:
             raise HTTPException(404, detail="alert not found") from None
         record_report(report, time.perf_counter() - t0)

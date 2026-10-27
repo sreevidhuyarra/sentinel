@@ -239,3 +239,58 @@ def test_malicious_link_makes_email_suspicious(bundle: Path, url_model: UrlModel
     [why] = bad["suspicious_because"]  # only the link: review band is off (starts at 1.0)
     assert why.startswith("link judged malicious") and "secure-login-9.xyz" in why
     assert good["verdict"] == "clean" and good["severity"] is None
+
+
+def _sender_client(bundle: Path, policy: dict[str, str]) -> TestClient:
+    """Text alerts and the review band off, so only the sender decides."""
+    ph = PhishingOnnxModel.load(bundle)
+    ph.threshold = 1.0
+    app = create_app(
+        bundle=object(),  # type: ignore[arg-type]
+        phishing=ph,
+        phishing_source="test",
+        suspicious_threshold=1.0,
+        sender_policy=policy,  # type: ignore[arg-type]
+    )
+    return TestClient(app)
+
+
+def test_sender_check_with_alert_role_flags_the_email(bundle: Path) -> None:
+    with _sender_client(
+        bundle, {"brand_impersonation": "alert", "lookalike_domain": "review"}
+    ) as c:
+        bad = c.post(
+            "/score/phishing",
+            json={"sender": "PayPal <service@paypa1.com>", "body": "meeting notes attached"},
+        ).json()
+        good = c.post(
+            "/score/phishing",
+            json={"sender": "PayPal <service@paypal.com>", "body": "meeting notes attached"},
+        ).json()
+    assert bad["verdict"] == "malicious" and bad["flagged_by"] == ["sender"]
+    roles = {f["check"]: f["role"] for f in bad["sender"]["findings"]}
+    assert roles == {"brand_impersonation": "alert", "lookalike_domain": "review"}
+    assert bad["sender"]["domain"] == "paypa1.com"
+    assert good["verdict"] == "clean" and good["sender"]["findings"] == []
+
+
+def test_eml_upload_reads_sender_headers(bundle: Path) -> None:
+    eml = "\r\n".join(
+        [
+            "Authentication-Results: mx.recipient.example; spf=fail; dkim=none; dmarc=fail",
+            "From: PayPal <service@paypal.com>",
+            "Reply-To: refunds.paypal@gmail.com",
+            "Subject: Your account is limited",
+            "Content-Type: text/plain; charset=utf-8",
+            "",
+            "Please confirm your details at http://paypal-check.example/login",
+        ]
+    )
+    with _sender_client(bundle, {}) as c:  # no policy file: findings only mark for review
+        body = c.post("/score/phishing", json={"eml": eml}).json()
+        assert c.post("/score/phishing", json={"subject": "x"}).status_code == 422
+    assert body["subject"] == "Your account is limited"
+    assert body["verdict"] == "suspicious" and body["flagged_by"] == []
+    assert body["sender"]["auth"] == {"spf": "fail", "dkim": "none", "dmarc": "fail"}
+    assert any(b.startswith("sender: DMARC fail") for b in body["suspicious_because"])
+    assert "http://paypal-check.example/login" in body["urls"]

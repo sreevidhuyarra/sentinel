@@ -183,6 +183,11 @@ copilot:
     judge_rpm: 5
     judge_rpd: 150
     cache_path: data/cache/llm.sqlite
+    # API investigations (someone is waiting): short Gemini timeout, one retry, short
+    # rate-limit wait, then the next provider. Evaluations keep the patient defaults.
+    interactive_timeout_s: 20
+    interactive_retries: 1
+    interactive_max_wait_s: 10
   # Emails scored per kind when filling the alerts table; the flagged ones become alerts.
   email_sample: {phishing: 309, fraud: 300, spam: 300, legitimate: 300}
   related_window_minutes: 30

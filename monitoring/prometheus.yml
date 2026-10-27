@@ -9,6 +9,7 @@ scrape_configs:
     static_configs: [{targets: ["host.docker.internal:9101", "detector:9101"]}]
   - job_name: replayer
     static_configs: [{targets: ["host.docker.internal:9102", "replayer:9102"]}]
+  # A host API on another port (SENTINEL_PORT) needs that port here, then restart Prometheus.
   - job_name: api
     metrics_path: /metrics
     static_configs: [{targets: ["host.docker.internal:8000", "api:8000"]}]

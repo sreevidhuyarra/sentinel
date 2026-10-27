@@ -164,6 +164,12 @@ class CopilotLLMParams(BaseModel):
     judge_rpm: int = Field(5, ge=1)
     judge_rpd: int = Field(100, ge=1)
     cache_path: Path = Path("data/cache/llm.sqlite")
+    # The dashboard waits on API investigations: give Gemini a short timeout, one retry and
+    # a short rate-limit wait, then fall back to the next provider. Evaluations keep the
+    # patient defaults (60 s timeout, 4 retries, up to 90 s quota waits).
+    interactive_timeout_s: float = Field(20.0, gt=0)
+    interactive_retries: int = Field(1, ge=0)
+    interactive_max_wait_s: float = Field(10.0, ge=0)
 
 
 class GuardParams(BaseModel):
@@ -356,6 +362,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     # When set, the API and dashboard require HTTP Basic auth with this key as the password.
     sentinel_api_key: str | None = None
+    # `sentinel serve` port (the docker-compose API uses the same variable on the host side).
+    sentinel_port: int = 8000
 
 
 def load_params(path: Path | None = None) -> Params:

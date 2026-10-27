@@ -126,6 +126,15 @@ Decisions worth knowing:
   detector) and a random split (to show the leakage it causes) are also available.
 - Identifiers (IPs, source port, flow ID, timestamps) are never model inputs.
 
+Modern phishing for the sender checks: [Phishing Pot](https://github.com/rf-peixoto/phishing_pot)
+by rf-peixoto, CC BY-NC 4.0 (non-commercial use with attribution). It contains real phishing,
+so it is downloaded locally and never committed:
+
+```bash
+curl -L -o data/raw/phishing_pot/phishing_pot-2933c03.zip \
+  https://codeload.github.com/rf-peixoto/phishing_pot/zip/2933c0341b1248678c1e246b36d352add2edf0f1
+```
+
 ## Module 1: supervised intrusion detection
 
 Classifies each flow as Benign or one of seven attack families and explains every alert.
@@ -434,6 +443,76 @@ invoice… complete the payment today") scores 0.014. Everyday business wording 
 legitimate training mail looks like, and only about 1,500 of the 200k training emails are
 true phishing. Fixing that needs modern phishing and invoice-fraud data, not a different
 threshold.
+
+### Sender checks and a modern phishing test set
+
+The text model reads only the subject and body, so it misses phishing whose giveaway is the
+sender. `POST /score/phishing` now also takes the From line (`sender`), `reply_to`, or the
+whole message (`eml`). The dashboard has an .eml upload. `phishing/sender.py` checks:
+
+- **Address** (From line):
+  - a display name naming a brand on an unrelated domain (`PayPal <service@paypa1.com>`);
+  - an address in the display name that differs from the real one;
+  - look-alike domains (`paypa1`, `n0rton-secure`);
+  - a brand inside another domain (`paypal.com.secure-check.ru`);
+  - punycode;
+  - an organisation name on a free mail account;
+  - high-abuse TLDs;
+  - machine-generated addresses;
+  - no usable address.
+- **Headers** (.eml only): Reply-To at another domain, and SPF, DKIM or DMARC failures. These
+  are taken from the topmost Authentication-Results, the one added by the recipient's own
+  server; lower ones can be forged.
+
+How far each check is trusted is measured, not assumed (`sentinel phishing sender-eval`,
+DVC stage `sender_eval`). The rules were fixed before any modern phishing was scored:
+
+- **May raise an alert on its own:** a check that fires on ≤ 0.1% of legitimate validation
+  emails, as long as all such checks together add ≤ 0.5% false alarms.
+- **Can only mark an email suspicious:**
+  - a check that fires on up to 2% of legitimate validation emails;
+  - every header check, because the email corpora keep only the From line, so their
+    false-alarm rate on legitimate mail can't be measured here.
+- **Ignored:** anything more frequent.
+
+The policy is saved to `models/phishing/sender_policy.json`.
+
+Modern phishing comes from [Phishing Pot](https://github.com/rf-peixoto/phishing_pot), which
+is licensed CC BY-NC 4.0 and pinned at commit `2933c03`. It holds real phishing received from
+about 2022 on, as raw .eml with headers:
+
+- 12,271 messages, 10,092 after removing duplicates; none share text with the training corpora;
+- split by arrival order: the earlier half for development, the later half held out for test.
+
+The emails are not redistributed here.
+
+Test results (`reports/phishing/sender_results.md`):
+
+| emails (test) | n | text + link: alert | + sender checks: alert | + sender: alert or review |
+|---|---|---|---|---|
+| legitimate (with a From line) | 13,964 | 0.39% | 0.55% | 7.08% |
+| phishing (Nazario) | 309 | 77.7% | 81.6% | 95.5% |
+| Phishing Pot (modern, held out) | 5,046 | 74.9% | 76.4% (From line) | 96.3% (with headers) |
+
+What this shows:
+
+- **Modern phishing is harder.** The deployed text and link models alert on 74.9% of modern
+  phishing (60.2% on the development half), against 77.7% of the older Nazario set.
+  Counting reviews, they flag 95%.
+- **The From line catches a few more, at a cost.** The checks catch 1.5 points more modern
+  phishing and 3.9 points more Nazario phishing as alerts, and add 0.16 points of false
+  alarms on legitimate mail.
+- **The headers help with review, not alerts.** They raise "alert or review" on modern
+  phishing from 95.3% to 96.3%. SPF failed on 49% of held-out modern phishing, Reply-To
+  pointed elsewhere on 15% and DMARC failed on 7%. Because those checks are unmeasured on
+  legitimate mail, they only mark email for review.
+- **Most of the legitimate test false alarms are a known flaw found on test.** The
+  one-letter-difference rule makes `email.si`, `email.com` and `email.cz` "look like" gmail
+  and `tunes.org` like itunes. Fixing it now would tune on the test set, so it is reported
+  rather than patched; a fix (skip ordinary words) needs fresh test data to measure.
+
+The invoice-fraud blind spot is unchanged: such emails need a sender giveaway, or invoice-fraud
+training data.
 
 ### URL classifier
 
@@ -888,6 +967,20 @@ To see a retrain, set `mlops.trigger_window: all` in `params.yaml`. To run every
 `docker compose --profile app --profile demo run --rm replayer stream replay --days friday`.
 The dashboard is at http://localhost:8000/app/, Grafana at http://localhost:3000 and
 Prometheus at http://localhost:9090.
+
+**Ports.** Every host port can be changed in `.env` (`SENTINEL_PORT`, `POSTGRES_PORT`,
+`MLFLOW_PORT`, `PROMETHEUS_PORT`, `GRAFANA_PORT`), so Sentinel can run beside another project
+that already holds 8000 or 5432. `sentinel serve`, docker compose and the Vite dev proxy all
+read `SENTINEL_PORT`; `.env.example` lists the URLs that must follow a changed port.
+
+**Start-up.** The API downloads each registry version once into `data/cache/models` and loads
+it from there on later starts. That saves about 10 s per start against a local MLflow; most of
+the start-up time is loading the models into memory. The copilot's models (guard, embedder and
+re-ranker) load in a background thread while the API already serves scoring and alerts, so
+the first investigation is not slow. Two requests for the same alert share one investigation
+and one LLM call. The API gives Gemini 20 s and one retry before falling back to the local
+model; evaluations keep the patient settings. The live alert feed queries the database off the
+event loop, and connections give up after 5 s, so a stopped database cannot freeze the API.
 
 **Access.** Every compose port binds to 127.0.0.1, so nothing is reachable from the network.
 The API and dashboard have no login unless `SENTINEL_API_KEY` is set in `.env`. With it set,

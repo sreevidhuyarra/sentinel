@@ -52,15 +52,17 @@ class GeminiProvider:
         timeout: float = 60.0,
         retries: int = 4,
         backoff: float = 10.0,
+        max_quota_wait: float = MAX_QUOTA_WAIT,
     ) -> None:
         if not api_key:
             raise ValueError("GEMINI_API_KEY is not set")
         self.model, self.retries, self.backoff = model, retries, backoff
+        self.max_quota_wait = max_quota_wait
         self._client = httpx.Client(timeout=timeout, headers={"x-goog-api-key": api_key})
 
     def _post(self, body: dict[str, Any]) -> httpx.Response:
         for attempt in range(self.retries + 1):
-            delay = self.backoff * 2**attempt  # 10, 20, 40, 80 s
+            delay = self.backoff * 2**attempt  # 10, 20, 40, 80 s by default
             try:
                 r = self._client.post(API.format(model=self.model), json=body)
             except httpx.TransportError as exc:  # timeouts, dropped connections
@@ -75,7 +77,7 @@ class GeminiProvider:
                     if (
                         info["daily"]
                         or wait is None
-                        or wait > MAX_QUOTA_WAIT
+                        or wait > self.max_quota_wait
                         or attempt == self.retries
                     ):
                         return r

@@ -241,6 +241,19 @@ def phishing_url_train(
     typer.echo(json.dumps(out["registry"], indent=2))
 
 
+@phishing_app.command("sender-eval")
+def phishing_sender_eval(
+    pot_zip: Path | None = typer.Option(None, help="Phishing Pot zip (default: data/raw)"),
+    params_file: Path | None = None,
+) -> None:
+    """Measure the sender checks on legitimate mail and modern phishing; write the policy."""
+    from sentinel.phishing.sender_eval import run
+
+    out = run(load_params(params_file), pot_zip)
+    typer.echo(json.dumps(out["policy"], indent=2))
+    typer.echo("wrote reports/phishing/sender_results.md and models/phishing/sender_policy.json")
+
+
 @phishing_app.command("notebook")
 def phishing_notebook(
     src: Path = typer.Option(Path("notebooks/phishing_lora_kaggle.py")),
@@ -625,7 +638,10 @@ def mlops_retrain(
 
 
 @app.command()
-def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
+def serve(
+    host: str = "127.0.0.1",
+    port: int | None = typer.Option(None, help="default: SENTINEL_PORT in .env, else 8000"),
+) -> None:
     """Run the FastAPI gateway (loads ids-classifier@production from MLflow).
 
     Set SENTINEL_API_KEY to require a password; needed before listening beyond localhost.
@@ -637,6 +653,7 @@ def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
     from sentinel.services.api import create_app
 
     key = get_settings().sentinel_api_key
+    port = port or get_settings().sentinel_port
     if not key and host not in ("127.0.0.1", "localhost", "::1"):
         get_logger("sentinel.serve").warning(
             "serving on %s without SENTINEL_API_KEY: anyone on the network can read alerts "

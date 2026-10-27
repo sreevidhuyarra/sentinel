@@ -132,8 +132,12 @@ reports = Table(
 COPILOT_TABLES = ("alerts", "reports")
 
 
+CONNECT_TIMEOUT_S = 5  # a stopped database fails fast instead of hanging requests
+
+
 def make_engine(url: str) -> Engine:
-    engine = create_engine(url, future=True, pool_pre_ping=True)
+    connect_args = {"connect_timeout": CONNECT_TIMEOUT_S} if url.startswith("postgresql") else {}
+    engine = create_engine(url, future=True, pool_pre_ping=True, connect_args=connect_args)
     if engine.dialect.name == "sqlite":
 
         @event.listens_for(engine, "connect")

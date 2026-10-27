@@ -1,0 +1,246 @@
+{
+  "policy": {
+    "lookalike_domain": "alert",
+    "punycode_domain": "alert",
+    "freemail_role": "alert",
+    "suspicious_tld": "alert",
+    "reply_to_elsewhere": "review",
+    "dmarc_fail": "review",
+    "spf_fail": "review",
+    "dkim_fail": "review",
+    "brand_impersonation": "alert",
+    "address_in_name": "alert",
+    "brand_in_domain": "alert",
+    "no_address": "review",
+    "random_address": "review"
+  },
+  "limits": {
+    "alert_max": 0.001,
+    "review_max": 0.02,
+    "combined_max": 0.005
+  },
+  "thresholds": {
+    "text": 0.9894675600000001,
+    "review": 0.5,
+    "url": 0.9995644169534785,
+    "url_email": 1.1
+  },
+  "check_rates": {
+    "legitimate val": {
+      "brand_impersonation": 7.156147130385e-05,
+      "address_in_name": 7.156147130385e-05,
+      "lookalike_domain": 0.0,
+      "brand_in_domain": 7.156147130385e-05,
+      "punycode_domain": 0.0,
+      "freemail_role": 0.0,
+      "suspicious_tld": 0.0,
+      "random_address": 0.0026477744382424504,
+      "no_address": 0.0015743523686847002,
+      "reply_to_elsewhere": 0.0,
+      "dmarc_fail": 0.0,
+      "spf_fail": 0.0,
+      "dkim_fail": 0.0
+    },
+    "phishing (Nazario) val": {
+      "brand_impersonation": 0.15857605177993528,
+      "address_in_name": 0.012944983818770227,
+      "lookalike_domain": 0.009708737864077669,
+      "brand_in_domain": 0.003236245954692557,
+      "punycode_domain": 0.0,
+      "freemail_role": 0.003236245954692557,
+      "suspicious_tld": 0.016181229773462782,
+      "random_address": 0.02912621359223301,
+      "no_address": 0.009708737864077669,
+      "reply_to_elsewhere": 0.0,
+      "dmarc_fail": 0.0,
+      "spf_fail": 0.0,
+      "dkim_fail": 0.0
+    },
+    "phishing pot dev": {
+      "brand_impersonation": 0.05370590566785573,
+      "address_in_name": 0.002576298057867618,
+      "lookalike_domain": 0.0005945303210463733,
+      "brand_in_domain": 0.00039635354736424893,
+      "punycode_domain": 0.0,
+      "freemail_role": 0.004954419342053111,
+      "suspicious_tld": 0.011890606420927468,
+      "random_address": 0.05608402695204122,
+      "no_address": 0.19896948077685295,
+      "reply_to_elsewhere": 0.13515655965120887,
+      "dmarc_fail": 0.16646848989298454,
+      "spf_fail": 0.15219976218787157,
+      "dkim_fail": 0.10840269520412207
+    },
+    "legitimate test": {
+      "brand_impersonation": 0.00042967631051274706,
+      "address_in_name": 0.00021483815525637353,
+      "lookalike_domain": 0.0011458034947006588,
+      "brand_in_domain": 0.0,
+      "punycode_domain": 0.0,
+      "freemail_role": 0.0,
+      "suspicious_tld": 0.0,
+      "random_address": 0.0008593526210254941,
+      "no_address": 0.002005156115726153,
+      "reply_to_elsewhere": 0.0,
+      "dmarc_fail": 0.0,
+      "spf_fail": 0.0,
+      "dkim_fail": 0.0
+    },
+    "phishing pot test": {
+      "brand_impersonation": 0.02933016250495442,
+      "address_in_name": 0.0007927070947284979,
+      "lookalike_domain": 0.00039635354736424893,
+      "brand_in_domain": 0.0005945303210463733,
+      "punycode_domain": 0.0,
+      "freemail_role": 0.0013872374157748713,
+      "suspicious_tld": 0.0011890606420927466,
+      "random_address": 0.011890606420927468,
+      "no_address": 0.002576298057867618,
+      "reply_to_elsewhere": 0.14764169639318273,
+      "dmarc_fail": 0.07154181529924693,
+      "spf_fail": 0.4940546967895363,
+      "dkim_fail": 0.13555291319857313
+    }
+  },
+  "results": {
+    "test": {
+      "text + link": {
+        "legitimate": {
+          "n": 13964,
+          "malicious": 0.0038670867946147235,
+          "malicious_or_suspicious": 0.06659982812947579
+        },
+        "phishing (Nazario)": {
+          "n": 309,
+          "malicious": 0.7766990291262136,
+          "malicious_or_suspicious": 0.941747572815534
+        },
+        "fraud": {
+          "n": 592,
+          "malicious": 0.902027027027027,
+          "malicious_or_suspicious": 0.9932432432432432
+        },
+        "spam": {
+          "n": 14647,
+          "malicious": 0.8995016044241142,
+          "malicious_or_suspicious": 0.9770601488359391
+        }
+      },
+      "text + link + sender": {
+        "legitimate": {
+          "n": 13964,
+          "malicious": 0.00551417931824692,
+          "malicious_or_suspicious": 0.07075336579776569
+        },
+        "phishing (Nazario)": {
+          "n": 309,
+          "malicious": 0.8155339805825242,
+          "malicious_or_suspicious": 0.9546925566343042
+        },
+        "fraud": {
+          "n": 592,
+          "malicious": 0.9070945945945946,
+          "malicious_or_suspicious": 0.9932432432432432
+        },
+        "spam": {
+          "n": 14647,
+          "malicious": 0.90045743155595,
+          "malicious_or_suspicious": 0.9779477026012152
+        }
+      }
+    },
+    "val": {
+      "text + link": {
+        "legitimate": {
+          "n": 13974,
+          "malicious": 0.024974953485043652,
+          "malicious_or_suspicious": 0.08809217117503935
+        },
+        "phishing (Nazario)": {
+          "n": 309,
+          "malicious": 0.7540453074433657,
+          "malicious_or_suspicious": 0.9385113268608414
+        },
+        "fraud": {
+          "n": 580,
+          "malicious": 0.8913793103448275,
+          "malicious_or_suspicious": 0.9706896551724138
+        },
+        "spam": {
+          "n": 14655,
+          "malicious": 0.9228932105083589,
+          "malicious_or_suspicious": 0.9796656431252132
+        }
+      },
+      "text + link + sender": {
+        "legitimate": {
+          "n": 13974,
+          "malicious": 0.02511807642765135,
+          "malicious_or_suspicious": 0.09181336768283956
+        },
+        "phishing (Nazario)": {
+          "n": 309,
+          "malicious": 0.7993527508090615,
+          "malicious_or_suspicious": 0.948220064724919
+        },
+        "fraud": {
+          "n": 580,
+          "malicious": 0.8913793103448275,
+          "malicious_or_suspicious": 0.9706896551724138
+        },
+        "spam": {
+          "n": 14655,
+          "malicious": 0.92316615489594,
+          "malicious_or_suspicious": 0.9823950870010235
+        }
+      }
+    },
+    "phishing pot dev": {
+      "text + link": {
+        "n": 5046,
+        "malicious": 0.6016646848989299,
+        "malicious_or_suspicious": 0.9254855330955212
+      },
+      "text + link + sender (From line only)": {
+        "n": 5046,
+        "malicious": 0.6240586603250099,
+        "malicious_or_suspicious": 0.9377724930638129
+      },
+      "text + link + sender (with headers)": {
+        "n": 5046,
+        "malicious": 0.6240586603250099,
+        "malicious_or_suspicious": 0.9520412207689258
+      }
+    },
+    "phishing pot test": {
+      "text + link": {
+        "n": 5046,
+        "malicious": 0.748513674197384,
+        "malicious_or_suspicious": 0.9494649227110583
+      },
+      "text + link + sender (From line only)": {
+        "n": 5046,
+        "malicious": 0.7635751089972255,
+        "malicious_or_suspicious": 0.9532302814110186
+      },
+      "text + link + sender (with headers)": {
+        "n": 5046,
+        "malicious": 0.7635751089972255,
+        "malicious_or_suspicious": 0.9625445897740785
+      }
+    }
+  },
+  "counts": {
+    "legitimate val with sender": 13974,
+    "legitimate test with sender": 13964,
+    "phishing pot parsed": 12271,
+    "phishing pot unique": 10092,
+    "phishing pot dev": 5046,
+    "phishing pot test": 5046
+  },
+  "source": {
+    "phishing_pot": "https://github.com/rf-peixoto/phishing_pot",
+    "commit": "2933c0341b1248678c1e246b36d352add2edf0f1",
+    "license": "CC BY-NC 4.0"
+  }
+}

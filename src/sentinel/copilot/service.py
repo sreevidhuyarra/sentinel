@@ -47,14 +47,16 @@ def build_copilot(
     llm: LLMProvider | str | None = "config",
     read_only: bool = True,
     db_url: str | None = None,
+    interactive: bool = False,
     **kwargs: bool,
 ) -> Copilot:
+    """`interactive` (the API) gives up on a slow Gemini sooner and falls back."""
     settings = settings or get_settings()
     url = db_url or (settings.postgres_ro_url if read_only else settings.postgres_url)
     provider: LLMProvider | None
     if llm == "config":
         try:
-            provider = build_provider(params, settings)
+            provider = build_provider(params, settings, interactive=interactive)
         except ValueError as exc:
             log.warning("no LLM provider (%s); reports will use the template", exc)
             provider = None

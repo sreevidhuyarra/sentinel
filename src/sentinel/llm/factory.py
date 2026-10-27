@@ -12,23 +12,43 @@ from sentinel.llm.ollama import OllamaProvider
 log = get_logger(__name__)
 
 
-def _one(name: str, cfg: CopilotLLMParams, params: Params, settings: Settings) -> LLMProvider:
+def _one(
+    name: str, cfg: CopilotLLMParams, params: Params, settings: Settings, interactive: bool
+) -> LLMProvider:
     path = params.resolve(cfg.cache_path)
     if name == "gemini":
-        gem = GeminiProvider(settings.gemini_api_key or "", cfg.gemini_model)
-        return CachedProvider(ThrottledProvider(gem, path, cfg.gemini_rpm, cfg.gemini_rpd), path)
+        key = settings.gemini_api_key or ""
+        if interactive:
+            gem = GeminiProvider(
+                key,
+                cfg.gemini_model,
+                timeout=cfg.interactive_timeout_s,
+                retries=cfg.interactive_retries,
+                backoff=2.0,
+                max_quota_wait=cfg.interactive_max_wait_s,
+            )
+            throttled = ThrottledProvider(
+                gem, path, cfg.gemini_rpm, cfg.gemini_rpd, max_wait=cfg.interactive_max_wait_s
+            )
+        else:
+            gem = GeminiProvider(key, cfg.gemini_model)
+            throttled = ThrottledProvider(gem, path, cfg.gemini_rpm, cfg.gemini_rpd)
+        return CachedProvider(throttled, path)
     if name == "ollama":
         return CachedProvider(OllamaProvider(cfg.ollama_model, settings.ollama_url), path)
     raise ValueError(f"unknown LLM provider {name!r} (gemini or ollama)")
 
 
 def build_provider(
-    params: Params, settings: Settings | None = None, order: list[str] | None = None
+    params: Params,
+    settings: Settings | None = None,
+    order: list[str] | None = None,
+    interactive: bool = False,
 ) -> LLMProvider:
     """Providers in `order` (default: LLM_PROVIDERS env, else params); skips unusable ones.
 
     Each provider gets its own cache entry, so switching providers never serves one
-    model's answer as another's.
+    model's answer as another's. `interactive` (the API) gives up on Gemini sooner.
     """
     settings = settings or get_settings()
     cfg = params.copilot.llm
@@ -40,7 +60,7 @@ def build_provider(
         if name == "gemini" and not settings.gemini_api_key:
             log.warning("GEMINI_API_KEY not set; skipping Gemini")
             continue
-        chain.append(_one(name, cfg, params, settings))
+        chain.append(_one(name, cfg, params, settings, interactive))
     return chain[0] if len(chain) == 1 else FallbackProvider(chain)
 
 

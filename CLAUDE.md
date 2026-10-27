@@ -124,6 +124,14 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
   hung in PowerShell 5.1.
 - Docker: uv cache must be a BuildKit cache mount, or it is baked in (image 8.6 GB).
 - Node 24 is a user install in %LOCALAPPDATA%\Programs\nodejs (not on PATH by default).
+- API start-up/latency (2026-10-27): registry versions are cached in data/cache/models
+  (download ~10 s per start saved; loading dominates: 36-89 s per start, depending on free
+  memory). The copilot warms in a background thread (6 s with free RAM; 130 s+ for DeBERTa
+  when the laptop is paging). Investigations are deduplicated per alert. API Gemini: 20 s
+  timeout, 1 retry, 10 s quota wait (`copilot.llm.interactive_*`). /ws/alerts uses
+  asyncio.to_thread; Postgres connect_timeout 5 s.
+- Ports are configurable in .env (SENTINEL_PORT, POSTGRES_PORT, ...) because the user's
+  aftermath project uses 8000 and 5432. Kill only the PIDs you started, never by name.
 - Dashboard colours: one fixed colour per family (frontend/src/lib/palette.ts), validated
   all-pairs for colour-blind separation; status red is only for severity; "Unknown anomaly" grey.
 
@@ -193,6 +201,17 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
   or AE anomaly, 1.4% benign to review) is the best defense: ≤5.5% feature-space, 3.5% realistic.
   Realistic high budget: Bot 94% evades ensemble (pad+delay combined only), PortScan 41% (delay),
   16% of PortScan beats the review flag — weakest spot. Dropping timing: 20.8% → 9.4%, −1.2 pt F1.
+
+## Sender checks (2026-10-27, `sentinel phishing sender-eval`, DVC `sender_eval`)
+- Phishing Pot (CC BY-NC 4.0, commit 2933c03) zip in data/raw/phishing_pot; parsed straight
+  from the zip, attachments never decoded; caches in data/interim (git-ignored, real phishing).
+- Policy limits fixed before scoring: alert <= 0.1% legit val (combined <= 0.5% extra),
+  review <= 2%; header checks (Reply-To/SPF/DKIM/DMARC) review only (unmeasured on legit).
+- Text threshold flags 2.0% of legit val but 0.31% of legit test (fpr_budget 0.02 on val):
+  expected, not a bug.
+- Known flaw found ON TEST (not patched, to keep test clean): one-edit look-alike matches
+  ordinary words (email~gmail, tunes~itunes). Fix needs fresh test data.
+- Python heredocs mangle backslashes (\b, \r\n): use Edit or a script file.
 
 ## Module 3 notes
 - Phishing verdict is three-way (2026-10-27): malicious (alert threshold 0.989) / suspicious

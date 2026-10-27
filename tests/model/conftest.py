@@ -24,15 +24,21 @@ from sentinel.common.config import (
 @contextmanager
 def mlflow_sandbox(root: Path) -> Iterator[None]:
     """Point MLflow at `root` for the duration of a training call. MLflow's default
-    artifact root is ./mlruns, so the working directory moves there too."""
+    artifact root is ./mlruns, so the working directory moves there too. Downloaded
+    registry versions are cached under `root` too, never in the project's data/cache."""
+    from sentinel.common import registry
+
     old_cwd, old_uri = Path.cwd(), os.environ.get("MLFLOW_TRACKING_URI")
+    old_cache = registry.MODEL_CACHE
     os.environ["MLFLOW_TRACKING_URI"] = f"sqlite:///{(root / 'mlflow.db').as_posix()}"
     get_settings.cache_clear()
+    registry.MODEL_CACHE = root / "model_cache"
     os.chdir(root)
     try:
         yield
     finally:
         os.chdir(old_cwd)
+        registry.MODEL_CACHE = old_cache
         if old_uri is None:
             os.environ.pop("MLFLOW_TRACKING_URI", None)
         else:

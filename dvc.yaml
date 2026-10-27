@@ -228,3 +228,29 @@ stages:
     metrics:
       - reports/ids/generalisation_metrics.json:
           cache: false
+
+  # Sender checks (From line, Reply-To, SPF/DKIM/DMARC) measured on legitimate mail and on
+  # modern phishing (Phishing Pot, CC BY-NC 4.0, raw .eml); writes the policy the API uses.
+  # Scoring Phishing Pot takes ~30-60 min on a laptop CPU and resumes if interrupted.
+  sender_eval:
+    cmd: sentinel phishing sender-eval
+    deps:
+      - data/raw/phishing_pot/phishing_pot-2933c03.zip
+      - data/raw/phishing_emails
+      - data/processed/phishing
+      - models/phishing/phishing_lora_output
+      - models/phishing/bundle
+      - models/phishing/url_bundle
+      - src/sentinel/phishing/sender.py
+      - src/sentinel/phishing/sender_eval.py
+    params:
+      - phishing.max_chars
+      - phishing.suspicious_threshold
+    outs:
+      - data/interim/phishing_pot.parquet
+      - models/phishing/sender_policy.json:
+          cache: false
+      - reports/phishing/sender_results.json:
+          cache: false
+      - reports/phishing/sender_results.md:
+          cache: false

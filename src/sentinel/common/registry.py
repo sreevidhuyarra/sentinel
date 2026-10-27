@@ -6,6 +6,8 @@ Each family logs its bundle directory as a pyfunc model, gets a new version alia
 
 from __future__ import annotations
 
+import os
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -13,11 +15,13 @@ import mlflow
 from mlflow.pyfunc.model import PythonModel
 from mlflow.tracking import MlflowClient
 
+from sentinel.common.config import PROJECT_ROOT
 from sentinel.common.logging import get_logger
 
 log = get_logger(__name__)
 
 SRC = Path(__file__).resolve().parents[1]  # src/sentinel
+MODEL_CACHE = PROJECT_ROOT / "data" / "cache" / "models"  # git-ignored with data/cache/
 PIP_REQUIREMENTS = [
     "lightgbm",
     "torch",
@@ -103,5 +107,43 @@ def promote(
     return decision
 
 
-def load_python_model(uri: str) -> Any:
-    return mlflow.pyfunc.load_model(uri).unwrap_python_model()
+def load_python_model(uri: str, cache: bool = True) -> Any:
+    local = cached_model(uri, MODEL_CACHE) if cache else None
+    return mlflow.pyfunc.load_model(str(local) if local else uri).unwrap_python_model()
+
+
+def cached_model(uri: str, cache_dir: Path) -> Path | None:
+    """A local copy of `models:/name@alias` or `models:/name/N`, downloaded once per version.
+
+    Registered versions never change, so the API restarts from disk instead of downloading
+    every bundle again; a moved alias resolves to a new version and is fetched then. The
+    folder name includes the run id, so a reset registry that reuses a number is not
+    mistaken for the old version. Returns None for other URIs.
+    """
+    if not uri.startswith("models:/"):
+        return None
+    ref = uri.removeprefix("models:/")
+    client = MlflowClient()
+    if "@" in ref:
+        name, alias = ref.split("@", 1)
+        mv = client.get_model_version_by_alias(name, alias)
+    elif "/" in ref:
+        name, version = ref.split("/", 1)
+        mv = client.get_model_version(name, version)
+    else:
+        return None
+    target = cache_dir / name / f"v{mv.version}-{(mv.run_id or 'norun')[:8]}"
+    if (target / "MLmodel").exists():
+        return target
+    tmp = target.with_name(f"{target.name}.part{os.getpid()}")
+    shutil.rmtree(tmp, ignore_errors=True)
+    tmp.mkdir(parents=True)
+    log.info("downloading %s v%s to %s", name, mv.version, target)
+    mlflow.artifacts.download_artifacts(
+        artifact_uri=f"models:/{name}/{mv.version}", dst_path=str(tmp)
+    )
+    try:
+        tmp.rename(target)
+    except OSError:  # another process finished first
+        shutil.rmtree(tmp, ignore_errors=True)
+    return target

@@ -1,0 +1,32 @@
+{
+  "policy": {
+    "lookalike_domain": "alert",
+    "punycode_domain": "alert",
+    "freemail_role": "alert",
+    "suspicious_tld": "alert",
+    "reply_to_elsewhere": "review",
+    "dmarc_fail": "review",
+    "spf_fail": "review",
+    "dkim_fail": "review",
+    "brand_impersonation": "alert",
+    "address_in_name": "alert",
+    "brand_in_domain": "alert",
+    "no_address": "review",
+    "random_address": "review"
+  },
+  "rates_on_legitimate_val": {
+    "brand_impersonation": 7.156147130385e-05,
+    "address_in_name": 7.156147130385e-05,
+    "lookalike_domain": 0.0,
+    "brand_in_domain": 7.156147130385e-05,
+    "punycode_domain": 0.0,
+    "freemail_role": 0.0,
+    "suspicious_tld": 0.0,
+    "random_address": 0.0026477744382424504,
+    "no_address": 0.0015743523686847002,
+    "reply_to_elsewhere": 0.0,
+    "dmarc_fail": 0.0,
+    "spf_fail": 0.0,
+    "dkim_fail": 0.0
+  }
+}

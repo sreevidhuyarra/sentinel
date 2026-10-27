@@ -189,3 +189,25 @@ def test_redactor_catches_ips_at_sentence_end_but_not_longer_numbers() -> None:
     red = r.redact("Traffic from 172.16.0.1 hit 192.168.10.50. Version 1.2.3.4.5 is unrelated.")
     assert "172.16.0.1" not in red and "192.168.10.50" not in red
     assert "[ip-internal-2]." in red and "1.2.3.4.5" in red
+
+
+def test_interactive_chain_gives_up_on_gemini_sooner(tmp_path: Path) -> None:
+    from sentinel.common.config import Settings, load_params
+    from sentinel.llm.factory import build_provider
+    from sentinel.llm.gemini import GeminiProvider
+
+    params = load_params()
+    params.copilot.llm.cache_path = tmp_path / "llm.sqlite"
+    settings = Settings(gemini_api_key="k", llm_providers="gemini")
+
+    def gemini(interactive: bool) -> tuple[GeminiProvider, ThrottledProvider]:
+        cached = build_provider(params, settings, interactive=interactive)
+        throttled = cached.inner  # type: ignore[attr-defined]
+        return throttled.inner, throttled
+
+    patient, slow_throttle = gemini(False)
+    quick, quick_throttle = gemini(True)
+    assert patient.retries == 4 and patient._client.timeout.read == 60.0
+    assert quick.retries == 1 and quick._client.timeout.read == 20.0
+    assert quick.max_quota_wait == 10.0 and quick_throttle.max_wait == 10.0
+    assert slow_throttle.max_wait == 65.0

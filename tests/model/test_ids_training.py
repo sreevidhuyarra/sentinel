@@ -50,6 +50,31 @@ def test_retraining_compares_against_production_on_the_same_rows(
     assert reg["gain_ci_low"] <= 0 and reg["promoted"] is False
 
 
+def test_registry_versions_are_downloaded_once(
+    trained: dict[str, Any], sandbox: Any, tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import mlflow
+
+    from sentinel.common import registry
+    from sentinel.ids.registry import load_bundle
+
+    uri = "models:/ids-classifier@production"
+    with sandbox(trained["root"]):
+        first = registry.cached_model(uri, tmp_path)
+        assert first is not None and (first / "MLmodel").exists()
+        assert first.name.startswith("v1-")
+
+        def no_download(**_: Any) -> None:
+            raise AssertionError("downloaded a cached version again")
+
+        monkeypatch.setattr(mlflow.artifacts, "download_artifacts", no_download)
+        assert registry.cached_model(uri, tmp_path) == first
+        assert registry.cached_model("models:/ids-classifier/1", tmp_path) == first
+        assert registry.cached_model("runs:/abc/model", tmp_path) is None
+        monkeypatch.setattr(registry, "MODEL_CACHE", tmp_path)
+        assert isinstance(load_bundle(), IDSBundle)  # loads from the cached copy
+
+
 def test_reports_written(trained: dict[str, Any]) -> None:
     reports = trained["root"] / "reports"
     for name in (
