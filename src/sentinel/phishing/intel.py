@@ -117,6 +117,9 @@ class DomainInfo:
     registered: str | None = None  # ISO date from RDAP
     age_days: int | None = None  # at the email's Date (or now)
     listed_on: list[str] = field(default_factory=list)
+    # Why `registered` is or is not set: found / no_record (RDAP had no answer) /
+    # well_known (never looked up) / skipped (over max_lookups) / off (RDAP disabled)
+    lookup: str = "off"
 
 
 @dataclass
@@ -373,12 +376,15 @@ class Intel:
 
         if self.rdap:
             todo = [d for d in domains if d not in _WELL_KNOWN][: self.max_lookups]
+            for d, info in domains.items():
+                info.lookup = "well_known" if d in _WELL_KNOWN else "skipped"
             with ThreadPoolExecutor(max_workers=max(1, len(todo))) as pool:
                 ages = dict(zip(todo, pool.map(self.registered_on, todo), strict=True))
             when = (sent or datetime.now(UTC)).date()
             for d, reg in ages.items():
                 info = domains[d]
                 info.registered = reg
+                info.lookup = "found" if reg else "no_record"
                 if reg is None:
                     continue
                 age = (when - date.fromisoformat(reg)).days

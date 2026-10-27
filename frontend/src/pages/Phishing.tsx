@@ -25,7 +25,7 @@ type Result = {
     findings: Finding[];
   };
   intel: null | {
-    domains: Array<{ domain: string; seen_as: string[]; registered: string | null; age_days: number | null; listed_on: string[] }>;
+    domains: Array<{ domain: string; seen_as: string[]; registered: string | null; age_days: number | null; listed_on: string[]; lookup: string }>;
     findings: Finding[];
     feeds_loaded: boolean;
   };
@@ -71,9 +71,17 @@ function Findings({ items }: { items: Finding[] }) {
   );
 }
 
-function age(days: number | null, registered: string | null) {
-  if (days == null) return registered ? `registered ${registered}` : "age unknown";
-  return days < 365 ? `${days} days old` : `${Math.floor(days / 365)} years old`;
+const NO_AGE: Record<string, string> = {
+  well_known: "well-known, not looked up",
+  no_record: "no registration record found",
+  skipped: "not looked up (lookup limit)",
+  off: "age lookups off",
+};
+
+function age(days: number | null, registered: string | null, lookup: string) {
+  if (days != null) return days < 365 ? `${days} days old` : `${Math.floor(days / 365)} years old`;
+  if (registered) return `registered ${registered}, after the email was sent`;
+  return NO_AGE[lookup] ?? "age unknown";
 }
 
 // "What is it really?": the analyst's label, saved with what was checked and what the models said.
@@ -238,7 +246,7 @@ export default function Phishing() {
                     <tr key={d.domain} className="border-t border-line">
                       <td className="py-1.5 font-mono text-xs break-all">{d.domain}</td>
                       <td className="text-ink-2">{d.seen_as.join(", ")}</td>
-                      <td>{age(d.age_days, d.registered)}</td>
+                      <td>{age(d.age_days, d.registered, d.lookup)}</td>
                       <td>{d.listed_on.length ? <span className="font-medium">✕ {d.listed_on.join(", ")}</span> : <span className="text-ink-2">not listed</span>}</td>
                     </tr>
                   ))}

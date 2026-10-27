@@ -301,6 +301,7 @@ class IntelDomain(BaseModel):
     registered: str | None  # RDAP registration date
     age_days: int | None  # at the email's Date, or today
     listed_on: list[str]  # blocklists naming it
+    lookup: str  # found / no_record / well_known / skipped / off
 
 
 class IntelReportOut(BaseModel):

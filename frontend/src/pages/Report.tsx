@@ -117,7 +117,16 @@ export default function Report() {
         <Card title="Timeline">
           <ol className="space-y-1.5 text-sm">
             {d.timeline.map((e, i) => (
-              <li key={i}><span className="text-ink-2">{e.time}</span> {e.event} {e.alert_ids.map((aid) => <Link key={aid} className="underline" to={`/alerts/${aid}`}>#{aid}</Link>)}</li>
+              <li key={i}>
+                <span className="text-ink-2">{e.time}</span> {e.event}
+                {e.alert_ids.length > 0 && (
+                  // Long campaigns list dozens of alerts: show a few, wrap, and count the rest.
+                  <span className="mt-0.5 flex flex-wrap gap-x-2 text-xs">
+                    {e.alert_ids.slice(0, 6).map((aid) => <Link key={aid} className="underline" to={`/alerts/${aid}`}>#{aid}</Link>)}
+                    {e.alert_ids.length > 6 && <span className="text-ink-2">+{e.alert_ids.length - 6} more</span>}
+                  </span>
+                )}
+              </li>
             ))}
           </ol>
         </Card>

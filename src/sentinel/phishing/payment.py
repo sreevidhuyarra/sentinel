@@ -81,10 +81,10 @@ def escalate(payment: list[Finding], other_checks: Iterable[str]) -> Finding | N
     risky = [c for c in other_checks if c not in NOT_RISKY]
     if not payment or not risky:
         return None
+    signs = ", ".join(c.replace("_", " ") for c in dict.fromkeys(risky))
     return Finding(
         ESCALATED,
         "high",
-        f"payment request ({', '.join(f.check for f in payment)}) from a sender with "
-        f"warning signs ({', '.join(dict.fromkeys(risky))}): verify by phone, using a number "
-        "you already have",
+        f"a payment request from a sender with warning signs ({signs}): verify by phone, "
+        "using a number you already have",
     )

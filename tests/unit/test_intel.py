@@ -73,8 +73,14 @@ def test_check_reports_sender_link_and_new_domain(intel: tuple[Intel, FakeFetch]
 
 def test_well_known_domains_are_never_sent_to_rdap(intel: tuple[Intel, FakeFetch]) -> None:
     i, fetch = intel
-    i.check(parse_sender("x <a@gmail.com>"), ["https://www.paypal.com/x", "http://10.0.0.1/"])
+    rep = i.check(parse_sender("x <a@gmail.com>"), ["https://www.paypal.com/x", "http://10.0.0.1/"])
     assert not any("rdap" in c for c in fetch.calls)
+    assert {d.domain: d.lookup for d in rep.domains} == {
+        "gmail.com": "well_known",
+        "paypal.com": "well_known",
+    }
+    missing = i.check(parse_sender("x <a@no-such-domain.zz>"), [])
+    assert missing.domains[0].lookup == "no_record"
 
 
 def test_rdap_answers_are_cached(tmp_path: Path) -> None:

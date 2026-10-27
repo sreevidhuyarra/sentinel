@@ -50,4 +50,4 @@ def test_escalation_needs_both_a_request_and_a_risky_sender() -> None:
     assert escalate([], ["freemail_role"]) is None
     found = escalate(pay, ["freemail_role", "new_domain", "freemail_role"])
     assert found is not None and found.check == ESCALATED
-    assert "freemail_role, new_domain" in found.text and "verify by phone" in found.text
+    assert "(freemail role, new domain)" in found.text and "verify by phone" in found.text

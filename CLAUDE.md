@@ -227,6 +227,12 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
   counts latest verdict per alert. `sentinel phishing feedback-export` -> parquet.
 - Port 8000 is aftermath's: test Sentinel with `sentinel serve --port 8010`.
 
+## Showcase layout (2026-10-28)
+- README is the front page only (pitch, screenshots, highlights, roles, lessons, results,
+  quick start). Module write-ups live in docs/*.md: update those, not the README.
+- Screenshots in docs/images come from the live dashboard (headless Chrome via
+  puppeteer-core in the scratchpad, not a project dependency).
+
 ## Payment / invoice-fraud checks (2026-10-28, `sentinel phishing payment-eval`)
 - `phishing/payment.py`: payment_change, gift_card_request, wire_request, payment_urgency
   (wording; designed on train+val only) -> always review: corpora hold few genuine invoices,
