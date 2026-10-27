@@ -33,6 +33,7 @@ from sentinel.ids.bundle import IDSBundle
 from sentinel.phishing.explain import explain
 from sentinel.phishing.export import PhishingOnnxModel
 from sentinel.phishing.intel import Intel, sent_at
+from sentinel.phishing.payment import check_payment, escalate
 from sentinel.phishing.sender import (
     Role,
     Sender,
@@ -156,6 +157,7 @@ def load_production_models() -> Models:
 MAX_EMAIL_URLS = 20
 SENDER_POLICY = PROJECT_ROOT / "models" / "phishing" / "sender_policy.json"
 INTEL_POLICY = PROJECT_ROOT / "models" / "phishing" / "intel_policy.json"
+PAYMENT_POLICY = PROJECT_ROOT / "models" / "phishing" / "payment_policy.json"
 INTEL_CACHE = PROJECT_ROOT / "data" / "cache" / "intel"
 FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
 WS_POLL_SECONDS = 1.0
@@ -314,7 +316,7 @@ class EmailReason(BaseModel):
 
 class EmailScore(BaseModel):
     is_malicious: bool  # text model, a link or an alert-level sender check flagged it
-    flagged_by: list[str]  # subset of ["text", "url", "sender", "intel"]
+    flagged_by: list[str]  # subset of ["text", "url", "sender", "intel", "payment"]
     # malicious = an alert; suspicious = below the alert threshold but worth a look (text score
     # in the review band, or a link the URL model judges malicious); clean = neither.
     verdict: Literal["malicious", "suspicious", "clean"]
@@ -328,6 +330,7 @@ class EmailScore(BaseModel):
     url_results: list[UrlScore]  # first 20 URLs, when the URL model is loaded
     sender: SenderReport | None  # when a From line or .eml was given
     intel: IntelReportOut | None  # blocklists and domain age, when enabled
+    payment: list[SenderFinding]  # payment / invoice-fraud requests in the text
     subject: str  # as scored (read from the .eml when one was given)
     model_version: str | None
     url_model_version: str | None
@@ -393,7 +396,7 @@ def create_app(
         else:
             app.state.suspicious = suspicious_threshold
         app.state.sender_policy = (
-            load_policy(SENDER_POLICY) | load_policy(INTEL_POLICY)
+            load_policy(SENDER_POLICY) | load_policy(INTEL_POLICY) | load_policy(PAYMENT_POLICY)
             if sender_policy is None
             else sender_policy
         )
@@ -622,6 +625,15 @@ def create_app(
             )
         intel_findings = intel_out.findings if intel_out else []
         intel_flag = any(f.role == "alert" for f in intel_findings)
+        pay = check_payment(text)
+        risky = escalate(pay, [f.check for f in (*findings, *intel_findings)])
+        payment = [
+            SenderFinding(
+                check=f.check, severity=f.severity, role=role_of(f.check, policy), text=f.text
+            )
+            for f in (*pay, *([risky] if risky else []))
+        ]
+        payment_flag = any(f.role == "alert" for f in payment)
         flagged_by = [
             name
             for name, hit in (
@@ -629,6 +641,7 @@ def create_app(
                 ("url", url_flag),
                 ("sender", sender_flag),
                 ("intel", intel_flag),
+                ("payment", payment_flag),
             )
             if hit
         ]
@@ -650,6 +663,7 @@ def create_app(
             ]
             because += [f"sender: {f.text}" for f in findings if f.role == "review"]
             because += [f"intel: {f.text}" for f in intel_findings if f.role == "review"]
+            because += [f"payment: {f.text}" for f in payment if f.role == "review"]
         verdict = "malicious" if flagged_by else "suspicious" if because else "clean"
         reasons = explain(ph, text) if email.explain and (text_flag or prob >= review) else []
         return EmailScore(
@@ -679,6 +693,7 @@ def create_app(
             if who is not None
             else None,
             intel=intel_out,
+            payment=payment,
             subject=subject,
             model_version=request.app.state.phishing_source,
             url_model_version=request.app.state.url_source,

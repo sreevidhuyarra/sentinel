@@ -296,6 +296,27 @@ def test_eml_upload_reads_sender_headers(bundle: Path) -> None:
     assert "http://paypal-check.example/login" in body["urls"]
 
 
+def test_invoice_request_is_reviewed_and_escalated_with_a_risky_sender(bundle: Path) -> None:
+    policy = {"payment_from_risky_sender": "alert", "freemail_role": "review"}
+    body = {"subject": "Invoice", "body": "Please complete the payment today. Thanks"}
+    with _sender_client(bundle, policy) as c:
+        plain = c.post("/score/phishing", json={**body, "sender": "Ann <ann@acme-tools.com>"})
+        risky = c.post(
+            "/score/phishing",
+            json={**body, "sender": "Accounts Payable Team <ap.dept@gmail.com>"},
+        )
+    p = plain.json()
+    assert p["verdict"] == "suspicious" and p["flagged_by"] == []
+    assert [f["check"] for f in p["payment"]] == ["payment_urgency"]
+    assert any(b.startswith("payment: presses for a payment") for b in p["suspicious_because"])
+    r = risky.json()
+    assert r["verdict"] == "malicious" and r["flagged_by"] == ["payment"]
+    assert {f["check"]: f["role"] for f in r["payment"]} == {
+        "payment_urgency": "review",
+        "payment_from_risky_sender": "alert",
+    }
+
+
 def test_blocklisted_link_and_new_sender_domain(bundle: Path, tmp_path: Path) -> None:
     from sentinel.phishing.intel import FEEDS, RDAP_URL, Intel
 

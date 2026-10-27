@@ -227,6 +227,14 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
   counts latest verdict per alert. `sentinel phishing feedback-export` -> parquet.
 - Port 8000 is aftermath's: test Sentinel with `sentinel serve --port 8010`.
 
+## Payment / invoice-fraud checks (2026-10-28, `sentinel phishing payment-eval`)
+- `phishing/payment.py`: payment_change, gift_card_request, wire_request, payment_urgency
+  (wording; designed on train+val only) -> always review: corpora hold few genuine invoices,
+  so their ~0% legit rate would not carry over to a finance inbox. `payment_from_risky_sender`
+  (wording + any sender/intel finding except no_address) gets a measured role.
+- No corpus is invoice fraud (fraud kind = advance-fee scams): catch rates are not BEC rates.
+  Real fix still needs BEC/invoice-fraud training data (Kaggle retrain, user's account).
+
 ## Module 3 notes
 - Phishing verdict is three-way (2026-10-27): malicious (alert threshold 0.989) / suspicious
   (text >= phishing.suspicious_threshold 0.5, or a link the URL model judges malicious) /

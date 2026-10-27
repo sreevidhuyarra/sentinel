@@ -29,6 +29,7 @@ type Result = {
     findings: Finding[];
     feeds_loaded: boolean;
   };
+  payment: Finding[];
   model_version: string | null;
   url_model_version: string | null;
 };
@@ -201,6 +202,14 @@ export default function Phishing() {
             )}
             {!r.reasons.length && <p className="text-xs text-ink-2">No single sentence stands out.</p>}
           </Card>
+          {r.payment.length > 0 && (
+            <Card title="Payment request" className="lg:col-span-3">
+              <p className="text-sm text-ink-2">
+                The email asks for money. Invoice scams look like ordinary business mail, so before paying, confirm the request by phone, using a number you already have, not one from this email.
+              </p>
+              <Findings items={r.payment} />
+            </Card>
+          )}
           {r.sender && (
             <Card title="Sender" className="lg:col-span-3">
               <div className="text-sm">

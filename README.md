@@ -556,6 +556,46 @@ The same rules as the sender checks decide each check's role (`sentinel phishing
 - **Domain age is review-only.** RDAP gives today's registration date, and the corpora's
   domains are from 2000–2020, so "new at the time of the email" can't be rebuilt for them.
 
+### Payment requests and invoice fraud
+
+Invoice scams read like ordinary business mail, so the text model passes them (the invoice
+example above scores 0.000). What gives them away is the request and who makes it.
+`phishing/payment.py` finds the request:
+
+- pay to **new or changed bank details**;
+- **buy gift cards**;
+- make a **wire or bank transfer**;
+- **payment urgency**: an overdue or outstanding invoice, or payment due today or immediately.
+
+A payment request together with any sender or domain warning sign (a company name on
+free mail, a look-alike domain, a domain registered last week, Reply-To elsewhere) becomes
+`payment_from_risky_sender`. The dashboard shows a "Payment request" card advising
+confirmation by phone, using a number the analyst already has.
+
+How far each is trusted (`sentinel phishing payment-eval`, `reports/phishing/payment_results.md`):
+
+| check | legitimate val | legitimate test | role |
+|---|---|---|---|
+| any payment wording | 0.00–0.03% | 0.00–0.03% | review |
+| payment request + sender warning sign | 0.00% | 0.00% | alert |
+
+- **Payment wording is review-only by design,** although its measured rate would allow
+  alerts. The patterns were designed on the training and validation splits only. The corpora
+  hold few genuine invoices, while a real accounts-payable inbox receives invoice reminders and
+  bank-detail notices every day. The training split alone has 44 legitimate "Past Due
+  Invoice" emails, so the near-zero rate would not carry over.
+- **No dataset here is invoice fraud.** The "fraud" category is advance-fee scams. The
+  measured effect is small: Nazario phishing flagged malicious or suspicious goes from 95.5%
+  to 96.1%, and legitimate mail from 5.70% to 5.72%, with no new alerts on either. None of
+  this is an invoice-fraud detection rate.
+- **On the live API**, the invoice example from a plain business sender is now
+  *suspicious* (it was clean). From `Accounts Payable Team <…@gmail.com>` it is *malicious*. A
+  "please note our new bank details" email is *suspicious*, and an ordinary lunch email stays
+  clean.
+
+Measuring invoice-fraud detection, and teaching the text model, needs business-email-compromise
+training data and a new fine-tuning run.
+
 ### URL classifier
 
 `uv run dvc repro train_url` trains character 3–5-gram TF-IDF (on normalised URLs) plus 23

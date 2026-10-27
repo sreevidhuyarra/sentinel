@@ -264,6 +264,16 @@ def phishing_intel_eval(params_file: Path | None = None) -> None:
     typer.echo("wrote reports/phishing/intel_results.md and models/phishing/intel_policy.json")
 
 
+@phishing_app.command("payment-eval")
+def phishing_payment_eval(params_file: Path | None = None) -> None:
+    """Measure the payment / invoice-fraud checks; write the payment policy."""
+    from sentinel.phishing.payment_eval import run
+
+    out = run(load_params(params_file))
+    typer.echo(json.dumps(out["policy"], indent=2))
+    typer.echo("wrote reports/phishing/payment_results.md and models/phishing/payment_policy.json")
+
+
 @phishing_app.command("feedback-export")
 def phishing_feedback_export(
     out: Path = typer.Option(Path("data/interim/feedback_emails.parquet")),

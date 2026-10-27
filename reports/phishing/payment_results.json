@@ -1,0 +1,131 @@
+{
+  "policy": {
+    "payment_change": "review",
+    "gift_card_request": "review",
+    "wire_request": "review",
+    "payment_urgency": "review",
+    "payment_from_risky_sender": "alert"
+  },
+  "limits": {
+    "alert_max": 0.001,
+    "review_max": 0.02
+  },
+  "check_rates": {
+    "legitimate val": {
+      "payment_change": 0.0,
+      "gift_card_request": 0.0,
+      "wire_request": 0.0,
+      "payment_urgency": 0.0002274665908444697,
+      "payment_from_risky_sender": 0.0
+    },
+    "legitimate test": {
+      "payment_change": 0.0,
+      "gift_card_request": 0.0,
+      "wire_request": 0.0,
+      "payment_urgency": 0.0002843494085532302,
+      "payment_from_risky_sender": 0.0
+    },
+    "phishing (Nazario) test": {
+      "payment_change": 0.0,
+      "gift_card_request": 0.0,
+      "wire_request": 0.0,
+      "payment_urgency": 0.012944983818770227,
+      "payment_from_risky_sender": 0.0
+    },
+    "fraud (advance-fee) test": {
+      "payment_change": 0.009230769230769232,
+      "gift_card_request": 0.0,
+      "wire_request": 0.0,
+      "payment_urgency": 0.036923076923076927,
+      "payment_from_risky_sender": 0.0015384615384615385
+    },
+    "phishing pot dev": {
+      "payment_change": 0.002972651605231867,
+      "gift_card_request": 0.00019817677368212446,
+      "wire_request": 0.00019817677368212446,
+      "payment_urgency": 0.002972651605231867,
+      "payment_from_risky_sender": 0.0045580657946888625
+    },
+    "phishing pot test": {
+      "payment_change": 0.00039635354736424893,
+      "gift_card_request": 0.0,
+      "wire_request": 0.0,
+      "payment_urgency": 0.0023781212841854932,
+      "payment_from_risky_sender": 0.0011890606420927466
+    }
+  },
+  "results": {
+    "test": {
+      "text + link + sender": {
+        "legitimate": {
+          "n": 17584,
+          "malicious": 0.004435850773430392,
+          "malicious_or_suspicious": 0.05698362147406733
+        },
+        "phishing": {
+          "n": 309,
+          "malicious": 0.8155339805825242,
+          "malicious_or_suspicious": 0.9546925566343042
+        },
+        "fraud": {
+          "n": 650,
+          "malicious": 0.9076923076923077,
+          "malicious_or_suspicious": 0.9938461538461538
+        },
+        "spam": {
+          "n": 17544,
+          "malicious": 0.8992248062015504,
+          "malicious_or_suspicious": 0.977485180118559
+        }
+      },
+      "+ payment checks": {
+        "legitimate": {
+          "n": 17584,
+          "malicious": 0.004435850773430392,
+          "malicious_or_suspicious": 0.05721110100090992
+        },
+        "phishing": {
+          "n": 309,
+          "malicious": 0.8155339805825242,
+          "malicious_or_suspicious": 0.9611650485436893
+        },
+        "fraud": {
+          "n": 650,
+          "malicious": 0.9076923076923077,
+          "malicious_or_suspicious": 0.9938461538461538
+        },
+        "spam": {
+          "n": 17544,
+          "malicious": 0.8992248062015504,
+          "malicious_or_suspicious": 0.9775421796625627
+        }
+      }
+    },
+    "pot": {
+      "text + link + sender": {
+        "dev": {
+          "n": 5046,
+          "malicious": 0.6240586603250099,
+          "malicious_or_suspicious": 0.9520412207689258
+        },
+        "test": {
+          "n": 5046,
+          "malicious": 0.7635751089972255,
+          "malicious_or_suspicious": 0.9625445897740785
+        }
+      },
+      "+ payment checks": {
+        "dev": {
+          "n": 5046,
+          "malicious": 0.6244550138723741,
+          "malicious_or_suspicious": 0.9526357510899722
+        },
+        "test": {
+          "n": 5046,
+          "malicious": 0.7635751089972255,
+          "malicious_or_suspicious": 0.9627427665477606
+        }
+      }
+    }
+  }
+}
