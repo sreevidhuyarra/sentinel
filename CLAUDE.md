@@ -213,6 +213,20 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
   ordinary words (email~gmail, tunes~itunes). Fix needs fresh test data.
 - Python heredocs mangle backslashes (\b, \r\n): use Edit or a script file.
 
+## Domain intel + analyst feedback (2026-10-28)
+- `phishing/intel.py`: Phishing.Database ACTIVE domains (MIT) + OpenPhish feed, cached in
+  data/cache/intel (git-ignored), refreshed every 12 h; RDAP domain age (only the registered
+  domain leaves the machine; cached in rdap.sqlite). URLhaus download now needs a key (410).
+- `sentinel phishing intel-eval` (not a DVC stage: feeds change daily, report records dates):
+  listed_url alert (0.00% legit val), listed_domain alert (0.07% val, 0.05% test), new_domain
+  review (unmeasurable on old corpora). First run was 0.11% -> added feedburner/angelfire to
+  SHARED_HOSTS (found on VAL); iol.ie (re-registered old ISP domain) stays counted.
+- Blocklists add nothing on the old corpora (feeds are current); Pot overlap ~1% is hindsight.
+- `feedback` table (not in COPILOT_TABLES): alert verdict sets alerts.status and labels the
+  alert's flows only where label IS NULL (replay keeps dataset labels). `/feedback/summary`
+  counts latest verdict per alert. `sentinel phishing feedback-export` -> parquet.
+- Port 8000 is aftermath's: test Sentinel with `sentinel serve --port 8010`.
+
 ## Module 3 notes
 - Phishing verdict is three-way (2026-10-27): malicious (alert threshold 0.989) / suspicious
   (text >= phishing.suspicious_threshold 0.5, or a link the URL model judges malicious) /

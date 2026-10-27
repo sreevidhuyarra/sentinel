@@ -1,0 +1,11 @@
+{
+  "policy": {
+    "listed_url": "alert",
+    "listed_domain": "alert",
+    "new_domain": "review"
+  },
+  "rates_on_legitimate_val": {
+    "listed_url": 0.0,
+    "listed_domain": 0.0006823997725334092
+  }
+}

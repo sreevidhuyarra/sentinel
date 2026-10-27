@@ -20,6 +20,7 @@ export type Alert = {
   evidence?: Record<string, unknown> | null;
   features?: Record<string, number | null> | null;
   model_version?: string | null;
+  status?: string | null; // new / confirmed / false_alarm (analyst feedback)
 };
 export type Reason = { feature?: string; value?: number; text: string; contribution: number };
 
@@ -58,6 +59,30 @@ export type Report = {
   facts: Record<string, unknown>;
 };
 
+export type AlertVerdict = "confirmed" | "false_alarm";
+export type FeedbackSummary = {
+  alerts: {
+    labelled: number;
+    confirmed: number;
+    false_alarms: number;
+    precision: number | null;
+    by_family: Record<string, { confirmed: number; false_alarms: number; precision: number | null }>;
+  };
+  emails: {
+    labelled: number;
+    matrix: Record<"malicious" | "suspicious" | "clean", { phishing: number; legitimate: number }>;
+    alert_precision: number | null;
+    flagged_share_of_phishing: number | null;
+    missed: number;
+    false_alarms: number;
+  };
+};
+export type EmailFeedback = {
+  verdict: "phishing" | "legitimate";
+  email: { subject: string; body: string; sender: string; reply_to: string; eml?: string; urls: string[] };
+  result: { verdict: string; probability: number; flagged_by: string[]; checks: string[]; model_version: string | null; url_model_version: string | null };
+};
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(path, { headers: { "Content-Type": "application/json" }, ...init });
   if (!r.ok) {
@@ -85,6 +110,13 @@ export const api = {
   report: (id: string) => call<Report>(`/reports/${id}`),
   phishing: (body: { subject: string; body: string; urls: string[]; sender?: string; reply_to?: string; eml?: string }) =>
     call<Record<string, unknown>>(`/score/phishing`, { method: "POST", body: JSON.stringify({ ...body, explain: true }) }),
+  alertFeedback: (id: number, body: { verdict: AlertVerdict; family?: string | null; note?: string }) =>
+    call<{ status: string; family: string; flows_labelled: number }>(`/feedback/alerts/${id}`, { method: "POST", body: JSON.stringify(body) }),
+  alertFeedbackHistory: (id: number) =>
+    call<Array<{ created: string; verdict: AlertVerdict; family: string | null; note: string | null }>>(`/feedback/alerts/${id}`),
+  emailFeedback: (body: EmailFeedback) =>
+    call<{ model_was_right: boolean }>(`/feedback/email`, { method: "POST", body: JSON.stringify(body) }),
+  feedbackSummary: () => call<FeedbackSummary>(`/feedback/summary`),
   models: () => call<Record<string, unknown>>(`/models`),
   drift: () =>
     call<{

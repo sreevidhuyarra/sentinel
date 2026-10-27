@@ -514,6 +514,48 @@ What this shows:
 The invoice-fraud blind spot is unchanged: such emails need a sender giveaway, or invoice-fraud
 training data.
 
+### Domain reputation: blocklists and domain age
+
+`phishing/intel.py` looks up the sender, Reply-To and link domains of every checked email:
+
+- **Blocklists**, downloaded every 12 hours and looked up locally, so nothing about the email
+  leaves the machine:
+  - [Phishing.Database](https://github.com/Phishing-Database/Phishing.Database) (MIT): about
+    392,000 hostnames currently serving phishing;
+  - the [OpenPhish](https://openphish.com) community feed: the newest ~300 phishing URLs.
+
+  Shared platforms (sites.google.com, link shorteners, feedburner, …) are listed because of
+  one page among millions, so a host listing there is ignored; an exact URL listing still
+  counts. (URLhaus was the first choice, but its free download now needs an API key.)
+- **Domain age** from RDAP, WHOIS's successor. A domain registered less than 30 days before
+  the email was sent is a classic phishing sign. Only the registered domain is sent to
+  rdap.org, never the email; answers are cached, and free-mail, brand and shared-platform
+  domains are never looked up. `phishing.intel.rdap: false` in `params.yaml` turns it off.
+
+The same rules as the sender checks decide each check's role (`sentinel phishing intel-eval`,
+`reports/phishing/intel_results.md`):
+
+| check | legitimate val | legitimate test | role |
+|---|---|---|---|
+| link URL on a phishing feed | 0.00% | 0.00% | alert |
+| sender or link domain on a blocklist | 0.07% | 0.05% | alert |
+| domain registered < 30 days before the email | not measurable | | review |
+
+- **The measurement is a snapshot.** The feeds change daily, so the report records the
+  download dates. The corpora are years older than the feeds, so a legitimate domain that
+  has since expired and been re-registered by a phisher (an old Irish ISP domain, 12
+  validation emails) counts as a false alarm. The rate is an upper bound.
+- **Two shared platforms were found on validation.** On the first run, domain listings
+  fired on 0.11% of legitimate validation mail, just over the 0.1% alert limit. Two of the
+  three hosts were shared platforms (feeds.feedburner.com, angelfire.com) missing from the
+  exclusion list. With them excluded it is 0.07%; the test split (0.05%) was not looked at.
+- **On these corpora the blocklists catch nothing extra.** The corpora are old, and the feeds
+  list today's phishing. The Phishing Pot overlap (about 1% of modern phishing) is hindsight:
+  today's feed against emails sent earlier. The value is on live mail. An email whose link
+  is on today's OpenPhish feed is now malicious even when its text scores 0.009.
+- **Domain age is review-only.** RDAP gives today's registration date, and the corpora's
+  domains are from 2000–2020, so "new at the time of the email" can't be rebuilt for them.
+
 ### URL classifier
 
 `uv run dvc repro train_url` trains character 3–5-gram TF-IDF (on normalised URLs) plus 23
@@ -982,6 +1024,21 @@ and one LLM call. The API gives Gemini 20 s and one retry before falling back to
 model; evaluations keep the patient settings. The live alert feed queries the database off the
 event loop, and connections give up after 5 s, so a stopped database cannot freeze the API.
 
+**Analyst feedback.** Every alert page has **✓ Confirmed attack** and **✕ False alarm**
+buttons, with an optional corrected family and a note. Every phishing check asks "What is it
+really?" (phishing or legitimate). Verdicts go to the `feedback` table, which the copilot
+cannot read, and are used three ways:
+
+- **Live precision** on Model health: alert precision overall and per family, email alert
+  precision, and phishing that passed as clean. These count only what analysts labelled
+  (the latest verdict per alert), so they describe reviewed items, not all traffic.
+- **Training labels.** A verdict labels the alert's sampled flows that have no label yet, so
+  live traffic gains labels for the retraining flow; a false alarm becomes Benign. Replayed
+  flows keep their dataset label.
+- **Fresh email test data.** Labelled emails are stored with what was checked and what the
+  models said. `sentinel phishing feedback-export` writes them to a parquet file: the
+  untouched test data that the look-alike fix needs.
+
 **Access.** Every compose port binds to 127.0.0.1, so nothing is reachable from the network.
 The API and dashboard have no login unless `SENTINEL_API_KEY` is set in `.env`. With it set,
 they require HTTP Basic auth: any user name, the key as password. The browser asks once and
@@ -1016,7 +1073,9 @@ a stored report.
 Dashboard endpoints: `WS /ws/alerts` pushes new alerts; `GET /stats/overview`,
 `/stats/throughput`, `/alerts/{id}/related`, `/mlops/drift`, `/mlops/retrains` and
 `/robustness/study` feed the pages; `POST /robustness/run` runs a pad-and-delay evasion test
-on test-split attack flows. `GET /metrics` is the Prometheus endpoint, and `/app/` serves the
+on test-split attack flows. Feedback: `POST /feedback/alerts/{id}`
+(`{"verdict": "confirmed" | "false_alarm", "family", "note"}`), `GET /feedback/alerts/{id}`,
+`POST /feedback/email` and `GET /feedback/summary`. `GET /metrics` is the Prometheus endpoint, and `/app/` serves the
 built dashboard (`cd frontend && npm ci && npm run build`).
 
 ## Model registry

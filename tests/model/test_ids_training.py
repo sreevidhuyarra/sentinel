@@ -138,6 +138,7 @@ def test_api_health_and_models(client: TestClient) -> None:
         "anomaly_model_loaded": False,
         "phishing_model_loaded": False,
         "url_model_loaded": False,
+        "intel": None,
     }
     assert client.get("/models").json()["ids"]["source"] == "test-bundle"
 

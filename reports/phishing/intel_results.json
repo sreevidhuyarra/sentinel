@@ -1,0 +1,141 @@
+{
+  "policy": {
+    "listed_url": "alert",
+    "listed_domain": "alert",
+    "new_domain": "review"
+  },
+  "limits": {
+    "alert_max": 0.001,
+    "review_max": 0.02
+  },
+  "feeds": {
+    "Phishing.Database": {
+      "hosts": 392164,
+      "updated": "2026-10-27T18:43:37+00:00"
+    },
+    "OpenPhish": {
+      "hosts": 276,
+      "updated": "2026-10-27T18:43:38+00:00"
+    }
+  },
+  "check_rates": {
+    "legitimate val": {
+      "listed_url": 0.0,
+      "listed_domain": 0.0006823997725334092
+    },
+    "legitimate test": {
+      "listed_url": 0.0,
+      "listed_domain": 0.00045495905368516835
+    },
+    "phishing (Nazario) test": {
+      "listed_url": 0.0,
+      "listed_domain": 0.003236245954692557
+    },
+    "phishing pot dev (hindsight)": {
+      "listed_url": 0.0,
+      "listed_domain": 0.01070154577883472
+    },
+    "phishing pot test (hindsight)": {
+      "listed_url": 0.0,
+      "listed_domain": 0.009512485136741973
+    }
+  },
+  "results": {
+    "test": {
+      "text + link + sender": {
+        "legitimate": {
+          "n": 17584,
+          "malicious": 0.004435850773430392,
+          "malicious_or_suspicious": 0.05698362147406733
+        },
+        "phishing": {
+          "n": 309,
+          "malicious": 0.8155339805825242,
+          "malicious_or_suspicious": 0.9546925566343042
+        },
+        "fraud": {
+          "n": 650,
+          "malicious": 0.9076923076923077,
+          "malicious_or_suspicious": 0.9938461538461538
+        },
+        "spam": {
+          "n": 17544,
+          "malicious": 0.8992248062015504,
+          "malicious_or_suspicious": 0.977485180118559
+        }
+      },
+      "+ blocklists": {
+        "legitimate": {
+          "n": 17584,
+          "malicious": 0.0048908098271155595,
+          "malicious_or_suspicious": 0.057438580527752504
+        },
+        "phishing": {
+          "n": 309,
+          "malicious": 0.8155339805825242,
+          "malicious_or_suspicious": 0.9546925566343042
+        },
+        "fraud": {
+          "n": 650,
+          "malicious": 0.9076923076923077,
+          "malicious_or_suspicious": 0.9938461538461538
+        },
+        "spam": {
+          "n": 17544,
+          "malicious": 0.8993388052895577,
+          "malicious_or_suspicious": 0.9775421796625627
+        }
+      }
+    },
+    "val": {
+      "text + link + sender": {
+        "legitimate": {
+          "n": 17585,
+          "malicious": 0.020073926642024453,
+          "malicious_or_suspicious": 0.07347170884276372
+        },
+        "phishing": {
+          "n": 309,
+          "malicious": 0.7993527508090615,
+          "malicious_or_suspicious": 0.948220064724919
+        },
+        "fraud": {
+          "n": 650,
+          "malicious": 0.8984615384615384,
+          "malicious_or_suspicious": 0.9738461538461538
+        },
+        "spam": {
+          "n": 17543,
+          "malicious": 0.9183149974348743,
+          "malicious_or_suspicious": 0.9805620475403295
+        }
+      },
+      "+ blocklists": {
+        "legitimate": {
+          "n": 17585,
+          "malicious": 0.020756326414557862,
+          "malicious_or_suspicious": 0.07415410861529713
+        },
+        "phishing": {
+          "n": 309,
+          "malicious": 0.8058252427184466,
+          "malicious_or_suspicious": 0.9514563106796117
+        },
+        "fraud": {
+          "n": 650,
+          "malicious": 0.8984615384615384,
+          "malicious_or_suspicious": 0.9738461538461538
+        },
+        "spam": {
+          "n": 17543,
+          "malicious": 0.9183149974348743,
+          "malicious_or_suspicious": 0.9805620475403295
+        }
+      }
+    }
+  },
+  "counts": {
+    "legitimate val": 17585,
+    "legitimate test": 17584
+  }
+}

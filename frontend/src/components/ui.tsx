@@ -38,6 +38,22 @@ export function SeverityBadge({ level }: { level?: string | null }) {
   );
 }
 
+// Analyst review state of an alert: a symbol plus a word, so it never relies on colour.
+const REVIEW: Record<string, [string, string]> = {
+  confirmed: ["✓", "Confirmed"],
+  false_alarm: ["✕", "False alarm"],
+};
+export function ReviewStatus({ status }: { status?: string | null }) {
+  const r = status ? REVIEW[status] : undefined;
+  if (!r) return <span className="text-xs text-muted">Not reviewed</span>;
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-ink">
+      <span aria-hidden>{r[0]}</span>
+      {r[1]}
+    </span>
+  );
+}
+
 export function Family({ name }: { name: string }) {
   const dark = useDark();
   return (

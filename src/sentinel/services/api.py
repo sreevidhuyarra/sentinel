@@ -32,6 +32,7 @@ from sentinel.detection.fusion import Detector, load_review_delta
 from sentinel.ids.bundle import IDSBundle
 from sentinel.phishing.explain import explain
 from sentinel.phishing.export import PhishingOnnxModel
+from sentinel.phishing.intel import Intel, sent_at
 from sentinel.phishing.sender import (
     Role,
     Sender,
@@ -45,6 +46,7 @@ from sentinel.phishing.text import extract_urls, model_input
 from sentinel.phishing.urls import UrlModel
 from sentinel.services.auth import authorized, protect
 from sentinel.services.dashboard import router as dashboard_router
+from sentinel.services.feedback import router as feedback_router
 from sentinel.services.metrics import instrument, record_report
 
 log = get_logger(__name__)
@@ -153,6 +155,8 @@ def load_production_models() -> Models:
 
 MAX_EMAIL_URLS = 20
 SENDER_POLICY = PROJECT_ROOT / "models" / "phishing" / "sender_policy.json"
+INTEL_POLICY = PROJECT_ROOT / "models" / "phishing" / "intel_policy.json"
+INTEL_CACHE = PROJECT_ROOT / "data" / "cache" / "intel"
 FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
 WS_POLL_SECONDS = 1.0
 WS_MAX_BATCH = 200
@@ -289,6 +293,20 @@ class SenderReport(BaseModel):
     findings: list[SenderFinding]
 
 
+class IntelDomain(BaseModel):
+    domain: str
+    seen_as: list[str]  # sender / reply-to / link
+    registered: str | None  # RDAP registration date
+    age_days: int | None  # at the email's Date, or today
+    listed_on: list[str]  # blocklists naming it
+
+
+class IntelReportOut(BaseModel):
+    domains: list[IntelDomain]
+    findings: list[SenderFinding]
+    feeds_loaded: bool
+
+
 class EmailReason(BaseModel):
     text: str
     contribution: float  # drop in the malicious logit when this sentence is removed
@@ -296,7 +314,7 @@ class EmailReason(BaseModel):
 
 class EmailScore(BaseModel):
     is_malicious: bool  # text model, a link or an alert-level sender check flagged it
-    flagged_by: list[str]  # subset of ["text", "url", "sender"]
+    flagged_by: list[str]  # subset of ["text", "url", "sender", "intel"]
     # malicious = an alert; suspicious = below the alert threshold but worth a look (text score
     # in the review band, or a link the URL model judges malicious); clean = neither.
     verdict: Literal["malicious", "suspicious", "clean"]
@@ -309,6 +327,7 @@ class EmailScore(BaseModel):
     urls: list[str]  # URLs found in the email plus those supplied
     url_results: list[UrlScore]  # first 20 URLs, when the URL model is loaded
     sender: SenderReport | None  # when a From line or .eml was given
+    intel: IntelReportOut | None  # blocklists and domain age, when enabled
     subject: str  # as scored (read from the .eml when one was given)
     model_version: str | None
     url_model_version: str | None
@@ -329,11 +348,14 @@ def create_app(
     suspicious_threshold: float | None = None,
     warm_copilot: bool | None = None,
     sender_policy: dict[str, Role] | None = None,
+    intel: Intel | None = None,
 ) -> FastAPI:
     """`api_key` turns on HTTP Basic auth (see services.auth); serve passes SENTINEL_API_KEY.
 
     `warm_copilot` (default: on when the models come from the registry) builds the copilot
     in a background thread at startup; otherwise it is built on the first investigation.
+    `intel` (blocklists and domain age) is built from params.yaml when the models come from
+    the registry; tests inject one or run without it.
     """
     if warm_copilot is None:
         warm_copilot = bundle is None
@@ -371,10 +393,29 @@ def create_app(
         else:
             app.state.suspicious = suspicious_threshold
         app.state.sender_policy = (
-            load_policy(SENDER_POLICY) if sender_policy is None else sender_policy
+            load_policy(SENDER_POLICY) | load_policy(INTEL_POLICY)
+            if sender_policy is None
+            else sender_policy
         )
         if not app.state.sender_policy:
             log.warning("no %s: sender checks can only mark email suspicious", SENDER_POLICY)
+        app.state.intel = intel
+        if intel is None and bundle is None:
+            from sentinel.common.config import load_params
+
+            cfg = load_params().phishing.intel
+            if cfg.enabled:
+                app.state.intel = Intel(
+                    INTEL_CACHE,
+                    new_domain_days=cfg.new_domain_days,
+                    rdap=cfg.rdap,
+                    rdap_timeout=cfg.rdap_timeout_s,
+                    max_lookups=cfg.max_lookups,
+                    refresh_hours=cfg.refresh_hours,
+                )
+        if app.state.intel is not None and not app.state.intel.feeds_loaded:
+            # Downloads take seconds; emails are checked without blocklists meanwhile.
+            threading.Thread(target=app.state.intel.refresh_feeds, daemon=True).start()
         app.state.db = db
         yield
 
@@ -383,6 +424,7 @@ def create_app(
     if api_key:
         protect(app, api_key)
     app.include_router(dashboard_router)
+    app.include_router(feedback_router)
 
     @app.websocket("/ws/alerts")
     async def ws_alerts(ws: WebSocket) -> None:
@@ -459,6 +501,7 @@ def create_app(
             "anomaly_model_loaded": d is not None and d.anomaly is not None,
             "phishing_model_loaded": getattr(request.app.state, "phishing", None) is not None,
             "url_model_loaded": getattr(request.app.state, "url", None) is not None,
+            "intel": ti.status() if (ti := getattr(request.app.state, "intel", None)) else None,
         }
 
     @app.get("/models")
@@ -523,12 +566,14 @@ def create_app(
             raise HTTPException(503, detail="phishing model not loaded")
         subject, body = email.subject, email.body
         who: Sender | None = None
+        sent = None
         if email.eml:
             try:
                 parsed = parse_eml(email.eml.encode("utf-8", "surrogateescape"))
             except Exception as exc:  # malformed message
                 raise HTTPException(422, detail=f"could not read the .eml: {exc}") from None
             subject, body, who = parsed.subject, parsed.body, parsed.sender
+            sent = sent_at(parsed.date)
             if not body.strip() and not subject.strip():
                 raise HTTPException(422, detail="the .eml has no readable text part")
         else:
@@ -558,9 +603,33 @@ def create_app(
             else []
         )
         sender_flag = any(f.role == "alert" for f in findings)
+        intel_out: IntelReportOut | None = None
+        ti: Intel | None = request.app.state.intel
+        if ti is not None:
+            found = ti.check(who, urls[:MAX_EMAIL_URLS], sent)
+            intel_out = IntelReportOut(
+                domains=[IntelDomain(**vars(d)) for d in found.domains],
+                findings=[
+                    SenderFinding(
+                        check=f.check,
+                        severity=f.severity,
+                        role=role_of(f.check, policy),
+                        text=f.text,
+                    )
+                    for f in found.findings
+                ],
+                feeds_loaded=found.feeds_loaded,
+            )
+        intel_findings = intel_out.findings if intel_out else []
+        intel_flag = any(f.role == "alert" for f in intel_findings)
         flagged_by = [
             name
-            for name, hit in (("text", text_flag), ("url", url_flag), ("sender", sender_flag))
+            for name, hit in (
+                ("text", text_flag),
+                ("url", url_flag),
+                ("sender", sender_flag),
+                ("intel", intel_flag),
+            )
             if hit
         ]
         strong = prob >= 0.999 or any(r.probability >= 0.99 for r in url_results)
@@ -580,6 +649,7 @@ def create_app(
                 if r.is_malicious
             ]
             because += [f"sender: {f.text}" for f in findings if f.role == "review"]
+            because += [f"intel: {f.text}" for f in intel_findings if f.role == "review"]
         verdict = "malicious" if flagged_by else "suspicious" if because else "clean"
         reasons = explain(ph, text) if email.explain and (text_flag or prob >= review) else []
         return EmailScore(
@@ -590,7 +660,7 @@ def create_app(
             probability=prob,
             threshold=ph.threshold,
             suspicious_threshold=review,
-            severity=("High" if strong or len(flagged_by) == 2 else "Medium")
+            severity=("High" if strong or len(flagged_by) >= 2 else "Medium")
             if flagged_by
             else "Low"
             if because
@@ -608,6 +678,7 @@ def create_app(
             )
             if who is not None
             else None,
+            intel=intel_out,
             subject=subject,
             model_version=request.app.state.phishing_source,
             url_model_version=request.app.state.url_source,

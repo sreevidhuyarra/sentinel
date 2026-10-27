@@ -18,7 +18,10 @@ export default function ModelHealth() {
   const runs = useQuery({ queryKey: ["retrains"], queryFn: api.retrains, refetchInterval: 15000 });
   const last = drift.data?.checks.filter((c) => c.window === drift.data?.trigger_window && c.share != null).at(-1);
   const perf = drift.data?.checks.filter((c) => c.attack_recall != null || c.benign_fpr != null).at(-1);
+  const fb = useQuery({ queryKey: ["feedback-summary"], queryFn: api.feedbackSummary, refetchInterval: 15000 });
   const m = models.data as Record<string, any> | undefined;
+  const fa = fb.data?.alerts;
+  const fe = fb.data?.emails;
 
   return (
     <div className="space-y-4">
@@ -31,6 +34,32 @@ export default function ModelHealth() {
         <Stat label="Retraining runs" value={runs.data?.length ?? "—"} hint={runs.data?.[0] ? `last: ${runs.data[0].status}` : undefined} />
         <Stat label="IDS model" value={servedVersion(m?.ids?.source)} hint={m?.ids?.source ? String(m.ids.source).replace(/ \(v\d+\)$/, "") : undefined} />
       </div>
+
+      <Card title="Analyst feedback">
+        {fb.isLoading ? <Loading /> : fb.error ? <ErrorBox error={fb.error} /> : fa!.labelled + fe!.labelled === 0 ? (
+          <Empty>No verdicts yet: mark alerts as confirmed or false alarm on their page, or label checked emails on Phishing check.</Empty>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <Stat label="Alert precision" value={pct(fa!.precision)} hint={`${fa!.confirmed} confirmed · ${fa!.false_alarms} false alarms`} />
+              <Stat label="Alerts reviewed" value={fa!.labelled.toLocaleString()} />
+              <Stat label="Email alert precision" value={pct(fe!.alert_precision)} hint={`${fe!.false_alarms} legitimate emails flagged malicious`} />
+              <Stat label="Phishing missed" value={fe!.missed.toLocaleString()} hint={`${pct(fe!.flagged_share_of_phishing)} of labelled phishing was flagged`} />
+            </div>
+            {Object.keys(fa!.by_family).length > 0 && (
+              <table className="mt-3 w-full text-sm">
+                <thead className="text-left text-xs text-ink-2"><tr><th className="py-1">Family</th><th>Confirmed</th><th>False alarms</th><th>Precision</th></tr></thead>
+                <tbody>
+                  {Object.entries(fa!.by_family).map(([f, c]) => (
+                    <tr key={f} className="border-t border-line"><td className="py-1.5">{f}</td><td>{c.confirmed}</td><td>{c.false_alarms}</td><td>{pct(c.precision)}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <p className="mt-2 text-xs text-ink-2">Counts only what analysts labelled (the latest verdict per alert), so these describe the reviewed items, not all traffic.</p>
+          </>
+        )}
+      </Card>
 
       <Card title="Data drift of live flows vs the benign training reference">
         {drift.isLoading ? <Loading /> : drift.error ? <ErrorBox error={drift.error} /> :

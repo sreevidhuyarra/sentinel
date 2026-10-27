@@ -254,6 +254,44 @@ def phishing_sender_eval(
     typer.echo("wrote reports/phishing/sender_results.md and models/phishing/sender_policy.json")
 
 
+@phishing_app.command("intel-eval")
+def phishing_intel_eval(params_file: Path | None = None) -> None:
+    """Measure the blocklist checks on legitimate mail; write the intel policy."""
+    from sentinel.phishing.intel_eval import run
+
+    out = run(load_params(params_file))
+    typer.echo(json.dumps(out["policy"], indent=2))
+    typer.echo("wrote reports/phishing/intel_results.md and models/phishing/intel_policy.json")
+
+
+@phishing_app.command("feedback-export")
+def phishing_feedback_export(
+    out: Path = typer.Option(Path("data/interim/feedback_emails.parquet")),
+) -> None:
+    """Write the emails analysts labelled (with what the models said) for evaluation."""
+    import pandas as pd
+
+    from sentinel.common.config import get_settings
+    from sentinel.db.schema import init_db, make_engine
+    from sentinel.services.feedback import labelled_emails
+
+    engine = make_engine(get_settings().postgres_url)
+    init_db(engine)
+    rows = labelled_emails(engine)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        [
+            {
+                **{k: r[k] for k in ("id", "created", "verdict", "model_verdict")},
+                **r["email"],
+                "result": json.dumps(r["result"]),
+            }
+            for r in rows
+        ]
+    ).to_parquet(out)
+    typer.echo(f"{len(rows)} labelled emails -> {out}")
+
+
 @phishing_app.command("notebook")
 def phishing_notebook(
     src: Path = typer.Option(Path("notebooks/phishing_lora_kaggle.py")),

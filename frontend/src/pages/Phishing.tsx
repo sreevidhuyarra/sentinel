@@ -1,7 +1,7 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button, Card, ErrorBox, SeverityBadge } from "../components/ui";
-import { api, pct } from "../lib/api";
+import { api, pct, type EmailFeedback } from "../lib/api";
 
 type Result = {
   is_malicious: boolean;
@@ -22,9 +22,17 @@ type Result = {
     domain: string;
     reply_to: string;
     auth: Record<string, string>;
-    findings: Array<{ check: string; severity: string; role: "alert" | "review" | "ignore"; text: string }>;
+    findings: Finding[];
   };
+  intel: null | {
+    domains: Array<{ domain: string; seen_as: string[]; registered: string | null; age_days: number | null; listed_on: string[] }>;
+    findings: Finding[];
+    feeds_loaded: boolean;
+  };
+  model_version: string | null;
+  url_model_version: string | null;
 };
+type Finding = { check: string; severity: string; role: "alert" | "review" | "ignore"; text: string };
 
 const ROLE: Record<string, string> = { alert: "raises an alert", review: "marks for review", ignore: "not counted" };
 
@@ -47,6 +55,61 @@ const VERDICT: Record<Result["verdict"], string> = {
   clean: "Looks legitimate",
 };
 
+function Findings({ items }: { items: Finding[] }) {
+  return (
+    <table className="mt-2 w-full text-sm">
+      <tbody>
+        {items.map((f, i) => (
+          <tr key={i} className="border-t border-line align-top">
+            <td className="py-1.5 pr-3 break-all">{f.text}</td>
+            <td className="whitespace-nowrap py-1.5 text-right text-xs text-ink-2">{f.severity} · {ROLE[f.role] ?? f.role}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function age(days: number | null, registered: string | null) {
+  if (days == null) return registered ? `registered ${registered}` : "age unknown";
+  return days < 365 ? `${days} days old` : `${Math.floor(days / 365)} years old`;
+}
+
+// "What is it really?": the analyst's label, saved with what was checked and what the models said.
+function Verdict({ r, email }: { r: Result; email: EmailFeedback["email"] }) {
+  const qc = useQueryClient();
+  const send = useMutation({
+    mutationFn: (verdict: EmailFeedback["verdict"]) =>
+      api.emailFeedback({
+        verdict,
+        email,
+        result: {
+          verdict: r.verdict,
+          probability: r.probability,
+          flagged_by: r.flagged_by,
+          checks: [...(r.sender?.findings ?? []), ...(r.intel?.findings ?? [])].map((f) => f.check),
+          model_version: r.model_version,
+          url_model_version: r.url_model_version,
+        },
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["feedback-summary"] }),
+  });
+  return (
+    <div className="mt-3 border-t border-line pt-3 text-sm">
+      {send.data ? (
+        <p className="text-ink-2">Saved. {send.data.model_was_right ? "The verdict was right." : "Recorded as a mistake: it counts in the live error rates on Model health."}</p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-ink-2">What is it really?</span>
+          <Button kind="plain" onClick={() => send.mutate("phishing")} disabled={send.isPending}>Phishing</Button>
+          <Button kind="plain" onClick={() => send.mutate("legitimate")} disabled={send.isPending}>Legitimate</Button>
+        </div>
+      )}
+      {send.error && <div className="mt-2"><ErrorBox error={send.error} /></div>}
+    </div>
+  );
+}
+
 export default function Phishing() {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -54,17 +117,21 @@ export default function Phishing() {
   const [sender, setSender] = useState("");
   const [replyTo, setReplyTo] = useState("");
   const [eml, setEml] = useState<{ name: string; text: string } | null>(null);
+  // The email as scored, kept with the result so the analyst's verdict labels exactly that.
+  const [checked, setChecked] = useState<EmailFeedback["email"] | null>(null);
   const m = useMutation({
-    mutationFn: () =>
-      api.phishing({
-        subject,
-        body,
-        urls: urls.split(/\s+/).filter(Boolean),
-        sender,
-        reply_to: replyTo,
-        ...(eml ? { eml: eml.text } : {}),
-      }) as Promise<Result>,
+    mutationFn: (email: EmailFeedback["email"]) => api.phishing(email) as Promise<Result>,
+    onSuccess: (_, email) => setChecked(email),
   });
+  const submit = () =>
+    m.mutate({
+      subject,
+      body,
+      urls: urls.split(/\s+/).filter(Boolean),
+      sender,
+      reply_to: replyTo,
+      ...(eml ? { eml: eml.text } : {}),
+    });
   const loadEml = async (file: File | undefined) => {
     if (!file) return;
     setEml({ name: file.name, text: await file.text() });
@@ -75,7 +142,7 @@ export default function Phishing() {
     <div className="space-y-4">
       <h1 className="text-lg font-semibold">Phishing check</h1>
       <Card>
-        <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); m.mutate(); }}>
+        <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); submit(); }}>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <label className="cursor-pointer rounded-md border border-line px-3 py-1.5 font-medium hover:bg-page">
               Upload .eml
@@ -118,6 +185,8 @@ export default function Phishing() {
                 {r.suspicious_because.map((b) => <li key={b} className="break-all">{b}</li>)}
               </ul>
             )}
+            {/* Keyed by the result, so a new check shows fresh buttons. */}
+            {checked && <Verdict key={m.submittedAt} r={r} email={checked} />}
           </Card>
           <Card title="Evidence in the text" className="lg:col-span-2">
             {eml ? (
@@ -144,19 +213,29 @@ export default function Phishing() {
                 </div>
               )}
               {r.sender.findings.length ? (
-                <table className="mt-2 w-full text-sm">
-                  <tbody>
-                    {r.sender.findings.map((f) => (
-                      <tr key={f.check} className="border-t border-line align-top">
-                        <td className="py-1.5 pr-3">{f.text}</td>
-                        <td className="whitespace-nowrap py-1.5 text-right text-xs text-ink-2">{f.severity} · {ROLE[f.role] ?? f.role}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <Findings items={r.sender.findings} />
               ) : (
                 <p className="mt-2 text-xs text-ink-2">Nothing unusual about the sender.</p>
               )}
+            </Card>
+          )}
+          {r.intel && r.intel.domains.length > 0 && (
+            <Card title="Domain reputation" className="lg:col-span-3">
+              {!r.intel.feeds_loaded && <p className="mb-2 text-xs text-ink-2">Blocklists are still downloading; only domain age was checked.</p>}
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs text-ink-2"><tr><th className="py-1">Domain</th><th>Seen as</th><th>Age</th><th>Blocklists</th></tr></thead>
+                <tbody>
+                  {r.intel.domains.map((d) => (
+                    <tr key={d.domain} className="border-t border-line">
+                      <td className="py-1.5 font-mono text-xs break-all">{d.domain}</td>
+                      <td className="text-ink-2">{d.seen_as.join(", ")}</td>
+                      <td>{age(d.age_days, d.registered)}</td>
+                      <td>{d.listed_on.length ? <span className="font-medium">✕ {d.listed_on.join(", ")}</span> : <span className="text-ink-2">not listed</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {r.intel.findings.length > 0 && <Findings items={r.intel.findings} />}
             </Card>
           )}
           {r.url_results.length > 0 && (

@@ -1,8 +1,59 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ReasonBars } from "../components/charts";
-import { Button, Card, Empty, ErrorBox, Family, Loading, SeverityBadge } from "../components/ui";
-import { api, fmtTime } from "../lib/api";
+import { Button, Card, Empty, ErrorBox, Family, Loading, ReviewStatus, SeverityBadge } from "../components/ui";
+import { api, fmtTime, type Alert, type AlertVerdict } from "../lib/api";
+
+const ATTACK_FAMILIES = ["DoS", "DDoS", "PortScan", "BruteForce", "WebAttack", "Bot", "Infiltration"];
+
+function Feedback({ alert }: { alert: Alert }) {
+  const qc = useQueryClient();
+  const [family, setFamily] = useState("");
+  const [note, setNote] = useState("");
+  const history = useQuery({ queryKey: ["feedback", alert.id], queryFn: () => api.alertFeedbackHistory(alert.id) });
+  const send = useMutation({
+    mutationFn: (verdict: AlertVerdict) =>
+      api.alertFeedback(alert.id, { verdict, family: verdict === "confirmed" && family ? family : null, note }),
+    onSuccess: () => {
+      setNote("");
+      qc.invalidateQueries({ queryKey: ["alert", alert.id] });
+      qc.invalidateQueries({ queryKey: ["feedback", alert.id] });
+      qc.invalidateQueries({ queryKey: ["feedback-summary"] });
+    },
+  });
+  const sel = "rounded-md border border-line bg-surface px-2 py-1 text-sm";
+  const last = history.data?.[0];
+  return (
+    <Card title="Analyst verdict" actions={<ReviewStatus status={alert.status} />}>
+      <p className="mb-3 text-xs text-ink-2">
+        Your verdict feeds the live precision on Model health, and labels this alert's sampled flows for retraining when they have no label yet.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        {alert.source === "network" && (
+          <select className={sel} value={family} onChange={(e) => setFamily(e.target.value)} aria-label="Correct family">
+            <option value="">Family is right ({alert.predicted_family})</option>
+            {ATTACK_FAMILIES.filter((f) => f !== alert.predicted_family).map((f) => <option key={f} value={f}>Actually {f}</option>)}
+          </select>
+        )}
+        <input className={`${sel} min-w-48 flex-1`} placeholder="Note (optional)" value={note} maxLength={2000} onChange={(e) => setNote(e.target.value)} />
+        <Button onClick={() => send.mutate("confirmed")} disabled={send.isPending}>✓ Confirmed attack</Button>
+        <Button kind="plain" onClick={() => send.mutate("false_alarm")} disabled={send.isPending}>✕ False alarm</Button>
+      </div>
+      {send.error && <div className="mt-2"><ErrorBox error={send.error} /></div>}
+      {send.data && send.data.flows_labelled > 0 && (
+        <p className="mt-2 text-xs text-ink-2">Labelled {send.data.flows_labelled} sampled flow{send.data.flows_labelled === 1 ? "" : "s"} as {send.data.family}.</p>
+      )}
+      {last && (
+        <p className="mt-2 text-xs text-ink-2">
+          Last verdict {fmtTime(last.created)}: {last.verdict === "confirmed" ? `confirmed${last.family ? ` as ${last.family}` : ""}` : "false alarm"}
+          {last.note ? ` · “${last.note}”` : ""}
+          {history.data!.length > 1 ? ` (${history.data!.length} verdicts in total; the latest counts)` : ""}
+        </p>
+      )}
+    </Card>
+  );
+}
 
 export default function AlertDetail() {
   const id = Number(useParams().id);
@@ -58,6 +109,8 @@ export default function AlertDetail() {
           {emailText && <details className="mt-3 text-sm"><summary className="cursor-pointer text-ink-2">Email text (untrusted)</summary><pre className="mt-2 whitespace-pre-wrap text-xs">{emailText}</pre></details>}
         </Card>
       </div>
+
+      <Feedback alert={a} />
 
       <Card title="Related activity (±30 min)">
         {related.isLoading ? <Loading /> : related.error ? <ErrorBox error={related.error} /> : (

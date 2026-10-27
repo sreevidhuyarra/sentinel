@@ -294,3 +294,47 @@ def test_eml_upload_reads_sender_headers(bundle: Path) -> None:
     assert body["sender"]["auth"] == {"spf": "fail", "dkim": "none", "dmarc": "fail"}
     assert any(b.startswith("sender: DMARC fail") for b in body["suspicious_because"])
     assert "http://paypal-check.example/login" in body["urls"]
+
+
+def test_blocklisted_link_and_new_sender_domain(bundle: Path, tmp_path: Path) -> None:
+    from sentinel.phishing.intel import FEEDS, RDAP_URL, Intel
+
+    def fetch(url: str, timeout: float) -> bytes:
+        if url == FEEDS["Phishing.Database"][0]:
+            return b"evil-login.com\n"
+        if url == RDAP_URL.format("fresh-invoice.com"):
+            event = {"eventAction": "registration", "eventDate": "2026-09-28T00:00:00Z"}
+            return json.dumps({"events": [event]}).encode()
+        raise FileNotFoundError(url)
+
+    intel = Intel(tmp_path, fetch=fetch)
+    intel.refresh_feeds()
+    ph = PhishingOnnxModel.load(bundle)
+    ph.threshold = 1.0
+    app = create_app(
+        bundle=object(),  # type: ignore[arg-type]
+        phishing=ph,
+        phishing_source="test",
+        suspicious_threshold=1.0,
+        sender_policy={"listed_domain": "alert"},  # type: ignore[dict-item]
+        intel=intel,
+    )
+    eml = "\r\n".join(
+        [
+            "From: Accounts <ap@fresh-invoice.com>",
+            "Date: Thu, 1 Oct 2026 09:00:00 +0000",
+            "Subject: Invoice",
+            "",
+            "Pay here https://evil-login.com/pay",
+        ]
+    )
+    with TestClient(app) as c:
+        listed = c.post("/score/phishing", json={"body": "See https://evil-login.com/pay"})
+        new = c.post("/score/phishing", json={"eml": eml.replace("evil-login.com", "ok.example")})
+        assert c.get("/health").json()["intel"]["feeds"]["Phishing.Database"]["hosts"] == 1
+    lb = listed.json()
+    assert lb["verdict"] == "malicious" and lb["flagged_by"] == ["intel"]
+    assert lb["intel"]["domains"][0]["listed_on"] == ["Phishing.Database"]
+    nb = new.json()  # new_domain has no policy entry: review only
+    assert nb["verdict"] == "suspicious"
+    assert any("registered 3 days before" in b for b in nb["suspicious_because"])

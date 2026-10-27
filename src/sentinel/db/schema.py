@@ -128,6 +128,26 @@ reports = Table(
     Column("error", Text),
 )
 
+# Analyst verdicts on alerts and on checked emails: the live precision on the dashboard, labels
+# for retraining (copied onto sampled flows that have none) and fresh email test data.
+# Not visible to the copilot.
+feedback = Table(
+    "feedback",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("created", DateTime, nullable=False),
+    Column("kind", String(16), nullable=False),  # "alert" or "email"
+    Column("alert_id", Integer, ForeignKey("alerts.id")),
+    # alert: "confirmed" / "false_alarm"; email: "phishing" / "legitimate"
+    Column("verdict", String(16), nullable=False),
+    Column("family", String(32)),  # alert: the analyst's family when it differs
+    Column("note", Text),
+    Column("model_verdict", String(16)),  # email: malicious / suspicious / clean
+    Column("email", JSONType),  # email: what was checked (subject, body, sender, urls, eml)
+    Column("result", JSONType),  # email: scores, flags and model versions as shown
+    Index("feedback_alert", "alert_id"),
+)
+
 # Tables the copilot's read-only role may see.
 COPILOT_TABLES = ("alerts", "reports")
 

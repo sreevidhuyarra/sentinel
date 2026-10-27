@@ -112,6 +112,18 @@ class AnomalyParams(BaseModel):
     iforest: IForestParams = IForestParams()
 
 
+class IntelParams(BaseModel):
+    """Blocklists and domain age for email domains (sentinel.phishing.intel)."""
+
+    enabled: bool = True
+    # RDAP sends each unfamiliar registered domain (never the email) to rdap.org.
+    rdap: bool = True
+    rdap_timeout_s: float = Field(4.0, gt=0)
+    max_lookups: int = Field(6, ge=1)  # RDAP lookups per email
+    new_domain_days: int = Field(30, ge=1)
+    refresh_hours: float = Field(12.0, gt=0)
+
+
 class PhishingParams(BaseModel):
     raw_dir: Path = Path("data/raw/phishing_emails")
     processed_dir: Path = Path("data/processed/phishing")
@@ -129,6 +141,7 @@ class PhishingParams(BaseModel):
     url_email_extra_fpr: float = Field(0.005, ge=0, lt=1)
     # Below the alert threshold but at or above this, an email is "suspicious" (for review).
     suspicious_threshold: float = Field(0.5, gt=0, lt=1)
+    intel: IntelParams = IntelParams()
 
 
 class AdversarialParams(BaseModel):

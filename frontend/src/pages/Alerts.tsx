@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Card, Empty, ErrorBox, Family, Loading, SeverityBadge } from "../components/ui";
+import { Card, Empty, ErrorBox, Family, Loading, ReviewStatus, SeverityBadge } from "../components/ui";
 import { api, fmtTime } from "../lib/api";
 import { SEVERITIES } from "../lib/palette";
 
@@ -35,7 +35,7 @@ export default function Alerts() {
         {res.isLoading ? <Loading /> : res.error ? <ErrorBox error={res.error} /> : res.data!.alerts.length === 0 ? <Empty>No alerts match.</Empty> : (
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-ink-2">
-              <tr><th className="py-1">Alert</th><th>Time</th><th>Family</th><th>Severity</th><th>Source → target</th><th>Detector</th><th>Confidence</th></tr>
+              <tr><th className="py-1">Alert</th><th>Time</th><th>Family</th><th>Severity</th><th>Source → target</th><th>Detector</th><th>Confidence</th><th>Review</th></tr>
             </thead>
             <tbody>
               {res.data!.alerts.map((a) => (
@@ -47,6 +47,7 @@ export default function Alerts() {
                   <td className="font-mono text-xs">{a.source === "email" ? a.sender_domain : `${a.src_ip} → ${a.dst_ip}:${a.dst_port}`}</td>
                   <td className="text-ink-2">{a.detector}</td>
                   <td>{a.confidence == null ? "—" : a.confidence.toFixed(2)}</td>
+                  <td><ReviewStatus status={a.status} /></td>
                 </tr>
               ))}
             </tbody>
