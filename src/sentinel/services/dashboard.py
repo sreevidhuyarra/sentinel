@@ -17,7 +17,7 @@ from sqlalchemy import func, select
 
 from sentinel.common.config import PROJECT_ROOT, get_settings
 from sentinel.copilot.tools import AlertTools
-from sentinel.db.schema import alerts, drift_checks, flows, retrain_runs
+from sentinel.db.schema import alerts, drift_checks, flows, reports, retrain_runs
 
 router = APIRouter()
 
@@ -96,9 +96,20 @@ def overview(request: Request, minutes: int = Query(60, ge=1, le=24 * 60)) -> di
     }
 
 
+DEMO_THROUGHPUT = PROJECT_ROOT / "data" / "demo" / "throughput.json"
+
+
 @router.get("/stats/throughput")
 def throughput(minutes: int = Query(30, ge=1, le=24 * 60)) -> dict[str, Any]:
-    """Flows scored per second over time, from Prometheus (empty if it is not reachable)."""
+    """Flows scored per second over time, from Prometheus (empty if it is not reachable).
+
+    The public demo has no Prometheus; it serves a series Prometheus recorded during real
+    replays (`recorded` names the day), so the chart shows measured data, marked as such.
+    """
+    if get_settings().sentinel_demo:
+        if not DEMO_THROUGHPUT.exists():
+            return {"available": False, "points": []}
+        return {"available": True, **json.loads(DEMO_THROUGHPUT.read_text(encoding="utf-8"))}
     end = time.time()
     query: dict[str, str | float] = {
         "query": "sum(rate(sentinel_flows_scored_total[1m]))",
@@ -131,6 +142,34 @@ def related(alert_id: int, request: Request) -> dict[str, Any]:
     if alert is None:
         raise HTTPException(404, detail="alert not found")
     return tools.related_alerts(alert)
+
+
+@router.get("/reports")
+def stored_reports(request: Request) -> list[dict[str, Any]]:
+    """The latest finished copilot report per alert, with what the alert was. In the public
+    demo, where live investigations are off, alert pages point to the one for the same
+    campaign or family."""
+    with _engine(request).connect() as conn:
+        rows = conn.execute(
+            select(
+                reports.c.id,
+                reports.c.alert_id,
+                reports.c.created,
+                alerts.c.predicted_family,
+                alerts.c.src_ip,
+                alerts.c.dst_ip,
+                alerts.c.dst_port,
+            )
+            .join(alerts, alerts.c.id == reports.c.alert_id)
+            .where(reports.c.status == "done")
+            .order_by(reports.c.created.desc())
+        ).all()
+    latest: dict[int, dict[str, Any]] = {}
+    for r in rows:
+        latest.setdefault(
+            r.alert_id, {**r._mapping, "report_id": r.id} | _utc({"created": r.created})
+        )
+    return [{k: v for k, v in d.items() if k != "id"} for d in latest.values()]
 
 
 @router.get("/mlops/drift")

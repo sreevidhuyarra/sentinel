@@ -8,7 +8,7 @@ import time
 from collections.abc import AsyncIterator, Callable
 from concurrent.futures import Future
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
@@ -163,6 +163,7 @@ INTEL_CACHE = PROJECT_ROOT / "data" / "cache" / "intel"
 FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
 WS_POLL_SECONDS = 1.0
 WS_MAX_BATCH = 200
+DEMO_REPLAY_BATCH = 3  # alerts a second in the demo's replayed feed
 WS_COLUMNS = [
     "id",
     "ts",
@@ -436,6 +437,55 @@ def create_app(
     app.include_router(dashboard_router)
     app.include_router(feedback_router)
 
+    async def _replay_feed(ws: WebSocket) -> None:
+        """Demo: nothing streams, so replay the recorded alerts in time order, a few a second,
+        from where the overview's hour window begins, looping at the end. Marked `replay`."""
+
+        def start() -> int:
+            with _db_engine(ws.app).connect() as conn:
+                latest = conn.execute(select(func.max(alerts_table.c.ts))).scalar()
+                if latest is None:
+                    return 0
+                return int(
+                    conn.execute(
+                        select(func.count()).where(alerts_table.c.ts < latest - timedelta(hours=1))
+                    ).scalar()
+                    or 0
+                )
+
+        def chunk(offset: int) -> list[Any]:
+            with _db_engine(ws.app).connect() as conn:
+                return list(
+                    conn.execute(
+                        select(*[alerts_table.c[c] for c in WS_COLUMNS])
+                        .order_by(alerts_table.c.ts, alerts_table.c.id)
+                        .offset(offset)
+                        .limit(DEMO_REPLAY_BATCH)
+                    ).all()
+                )
+
+        try:
+            offset = await asyncio.to_thread(start)
+            while True:
+                rows = await asyncio.to_thread(chunk, offset)
+                if not rows:
+                    if offset == 0:  # empty database
+                        return
+                    offset = 0
+                    continue
+                offset += len(rows)
+                await ws.send_json(
+                    {
+                        "alerts": [
+                            jsonable_encoder(dict(zip(WS_COLUMNS, r, strict=True))) for r in rows
+                        ],
+                        "replay": True,
+                    }
+                )
+                await asyncio.sleep(WS_POLL_SECONDS)
+        except WebSocketDisconnect:
+            return
+
     @app.websocket("/ws/alerts")
     async def ws_alerts(ws: WebSocket) -> None:
         """Live alert feed: new rows of the alerts table, pushed as they are written.
@@ -448,6 +498,9 @@ def create_app(
             await ws.close(code=1008)  # policy violation: the HTTP middleware skips WebSockets
             return
         await ws.accept()
+        if demo:
+            await _replay_feed(ws)
+            return
         since = ws.query_params.get("since_id")
 
         # Database calls run in worker threads: a slow or stopped database must not block

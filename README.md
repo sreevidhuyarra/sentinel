@@ -7,6 +7,11 @@ keeps both honest.**
 [![CI](https://github.com/sreevidhuyarra/sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/sreevidhuyarra/sentinel/actions/workflows/ci.yml)
 ![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Live demo](https://img.shields.io/badge/live%20demo-Hugging%20Face-orange)](https://sreevidhuyarra-sentinel.hf.space/app/)
+
+**[Try the live demo →](https://sreevidhuyarra-sentinel.hf.space/app/)** Browse recorded alerts
+and the copilot's reports, and check your own emails for phishing. It runs read-only on
+Hugging Face Spaces ([what the demo turns off](docs/platform.md#public-demo-hugging-face-spaces)).
 
 ![Live overview: replayed attack traffic scored in real time](docs/images/overview.png)
 

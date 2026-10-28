@@ -103,13 +103,16 @@ export const api = {
   health: () => call<{ status: string; demo?: boolean }>(`/health`),
   overview: (minutes: number) => call<Overview>(`/stats/overview?minutes=${minutes}`),
   throughput: (minutes: number) =>
-    call<{ available: boolean; points: Array<{ t: string; flows_per_s: number }> }>(`/stats/throughput?minutes=${minutes}`),
+    // `recorded` (demo only): the day Prometheus measured this series during a real replay.
+    call<{ available: boolean; recorded?: string; note?: string; points: Array<{ t: string; flows_per_s: number }> }>(`/stats/throughput?minutes=${minutes}`),
   alerts: (q: Record<string, string>) =>
     call<{ alerts: Alert[]; count: number }>(`/alerts?${new URLSearchParams(q)}`),
   alert: (id: number) => call<Alert>(`/alerts/${id}`),
   related: (id: number) => call<Record<string, unknown> & { count: number; sample: Alert[] }>(`/alerts/${id}/related`),
   investigate: (id: number) => call<Report>(`/copilot/investigate/${id}`, { method: "POST" }),
   report: (id: string) => call<Report>(`/reports/${id}`),
+  storedReports: () =>
+    call<Array<{ report_id: string; alert_id: number; created: string; predicted_family: string; src_ip: string | null; dst_ip: string | null; dst_port: number | null }>>(`/reports`),
   phishing: (body: { subject: string; body: string; urls: string[]; sender?: string; reply_to?: string; eml?: string }) =>
     call<Record<string, unknown>>(`/score/phishing`, { method: "POST", body: JSON.stringify({ ...body, explain: true }) }),
   alertFeedback: (id: number, body: { verdict: AlertVerdict; family?: string | null; note?: string }) =>

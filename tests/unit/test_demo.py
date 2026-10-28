@@ -98,6 +98,55 @@ def test_demo_blocks_writes_and_live_investigations(demo_client: TestClient) -> 
     assert demo_client.get("/alerts/1").status_code == 200  # reading still works
 
 
+def test_stored_reports_list_the_latest_per_alert(source: Engine, demo_client: TestClient) -> None:
+    from sentinel.db.schema import reports
+
+    with source.begin() as conn:
+        conn.execute(
+            insert(reports),
+            [
+                {"id": "old", "alert_id": 1, "created": T0, "status": "done", "report": {}},
+                {
+                    "id": "new",
+                    "alert_id": 1,
+                    "created": T0 + timedelta(hours=1),
+                    "status": "done",
+                    "report": {},
+                },
+                {"id": "bad", "alert_id": 2, "created": T0, "status": "failed", "report": {}},
+            ],
+        )
+    [r] = demo_client.get("/reports").json()
+    assert r["report_id"] == "new" and r["alert_id"] == 1
+    assert r["predicted_family"] == "DDoS" and r["dst_ip"] == "192.168.10.50"
+
+
+def test_demo_feed_replays_recorded_alerts(demo_client: TestClient) -> None:
+    with demo_client.websocket_connect("/ws/alerts") as ws:
+        msg = ws.receive_json()
+    assert msg["replay"] is True and 1 <= len(msg["alerts"]) <= 3
+    assert {"id", "predicted_family", "src_ip"} <= set(msg["alerts"][0])
+
+
+def test_demo_throughput_is_the_recorded_series(
+    demo_client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sentinel.services import dashboard
+
+    missing = tmp_path / "none.json"
+    monkeypatch.setattr(dashboard, "DEMO_THROUGHPUT", missing)
+    assert demo_client.get("/stats/throughput").json() == {"available": False, "points": []}
+    recorded = tmp_path / "throughput.json"
+    recorded.write_text(
+        '{"recorded": "2026-10-27", "note": "n", "points": [{"t": "x", "flows_per_s": 500.0}]}'
+    )
+    monkeypatch.setattr(dashboard, "DEMO_THROUGHPUT", recorded)
+    tp = demo_client.get("/stats/throughput").json()
+    assert (
+        tp["available"] and tp["recorded"] == "2026-10-27" and tp["points"][0]["flows_per_s"] == 500
+    )
+
+
 def test_demo_rate_limits_scoring_per_visitor(demo_client: TestClient) -> None:
     def post(ip: str) -> int:
         return demo_client.post(

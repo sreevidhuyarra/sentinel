@@ -5,6 +5,7 @@ import type { Alert } from "./api";
 export function useLiveAlerts(keep = 50) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [connected, setConnected] = useState(false);
+  const [replay, setReplay] = useState(false); // the public demo replays recorded alerts
   useEffect(() => {
     let ws: WebSocket | null = null;
     let retry: number | undefined;
@@ -14,7 +15,9 @@ export function useLiveAlerts(keep = 50) {
       ws = new WebSocket(`${proto}://${location.host}/ws/alerts`);
       ws.onopen = () => setConnected(true);
       ws.onmessage = (e) => {
-        const batch = (JSON.parse(e.data).alerts ?? []) as Alert[];
+        const msg = JSON.parse(e.data);
+        const batch = (msg.alerts ?? []) as Alert[];
+        if (msg.replay) setReplay(true);
         setAlerts((prev) => [...batch.reverse(), ...prev].slice(0, keep));
       };
       ws.onclose = () => {
@@ -29,5 +32,5 @@ export function useLiveAlerts(keep = 50) {
       ws?.close();
     };
   }, [keep]);
-  return { alerts, connected };
+  return { alerts, connected, replay };
 }

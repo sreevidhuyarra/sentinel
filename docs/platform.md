@@ -161,11 +161,19 @@ here, so keep them on localhost.
   "Investigate" opens the stored report for an alert instead of calling an LLM.
 - **Rate-limited.** Scoring allows 20 requests a minute per visitor (the first
   `X-Forwarded-For` address behind the Spaces proxy).
-- **A banner** in the dashboard says what is recorded and what runs live.
+- **Recorded, and labelled as such.** A banner says what is recorded and what runs live. The
+  live alert feed replays the snapshot's alerts in time order (three a second). The
+  throughput chart shows a Prometheus series measured during real replays (peak 507 flows/s).
+  Alerts without a stored report link to the one for the same campaign or family.
 
 The phishing check runs live, including blocklists and RDAP lookups. `scripts/stage_hf_space.py`
-assembles the Space (code, deployed bundles, policies, snapshot; about 320 MB) and refuses to
-include `.env` or Phishing Pot data. `deploy/huggingface/PUBLISH.md` has the steps.
+assembles the Space (code, deployed bundles, policies, snapshot, built dashboard; about 320 MB)
+and refuses to include `.env` or Phishing Pot data.
+
+The Space uses the Gradio SDK, because Docker Spaces are paid on some accounts. `app.py`
+serves the same FastAPI app with a small Gradio page mounted at `/gradio`. It pins PyTorch
+2.13, the newest version ZeroGPU hardware supports, and installs the other dependencies at
+their `uv.lock` versions. `deploy/huggingface/PUBLISH.md` has the steps.
 
 ## API
 

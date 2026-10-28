@@ -16,7 +16,10 @@ export default function Overview() {
   const live = useLiveAlerts(40);
 
   const families = sortFamilies(Object.keys(ov.data?.by_family ?? {}));
-  const rate = tp.data?.points.at(-1)?.flows_per_s;
+  const recorded = tp.data?.recorded; // demo: a series measured during a real replay
+  const rate = recorded
+    ? Math.max(...(tp.data?.points ?? []).map((p) => p.flows_per_s))
+    : tp.data?.points.at(-1)?.flows_per_s;
 
   return (
     <div className="space-y-4">
@@ -33,8 +36,8 @@ export default function Overview() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Flows scored / s" value={rate == null ? "—" : rate.toFixed(0)}
-              hint={tp.data && !tp.data.available ? "Prometheus not reachable" : "last minute"} />
+        <Stat label={recorded ? "Flows scored / s (recorded peak)" : "Flows scored / s"} value={rate == null || !isFinite(rate) ? "—" : rate.toFixed(0)}
+              hint={recorded ? "measured by Prometheus during a replay" : tp.data && !tp.data.available ? "Prometheus not reachable" : "last minute"} />
         <Stat label={`Alerts (last ${minutes} min of traffic)`} value={ov.data?.total.toLocaleString() ?? "—"} />
         <Stat label="Most frequent family" value={families[0] ? <Family name={Object.entries(ov.data!.by_family)[0][0]} /> : "—"} />
         <Stat label="Live feed" value={live.connected ? "Connected" : "Reconnecting"} hint="WebSocket /ws/alerts" />
@@ -68,9 +71,10 @@ export default function Overview() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card title="Flows scored per second (last 30 min)" className="lg:col-span-2">
+        <Card title={recorded ? `Flows scored per second (recorded ${recorded})` : "Flows scored per second (last 30 min)"} className="lg:col-span-2">
           {tp.data && tp.data.points.length ? <Throughput points={tp.data.points} /> :
             <Empty>{tp.data && !tp.data.available ? "Prometheus is not running." : "No traffic yet."}</Empty>}
+          {tp.data?.note && <p className="mt-2 text-xs text-ink-2">{tp.data.note}</p>}
         </Card>
         <Card title="Top sources">
           {ov.data?.top_sources.length ? (
@@ -88,7 +92,7 @@ export default function Overview() {
         </Card>
       </div>
 
-      <Card title="Live alert feed" actions={<Link to="/alerts" className="text-sm text-ink-2 underline">All alerts</Link>}>
+      <Card title={live.replay ? "Live alert feed: replaying recorded alerts" : "Live alert feed"} actions={<Link to="/alerts" className="text-sm text-ink-2 underline">All alerts</Link>}>
         {live.alerts.length === 0 ? <Empty>Waiting for new alerts…</Empty> : (
           <div className="max-h-96 overflow-y-auto">
             <table className="w-full text-sm">

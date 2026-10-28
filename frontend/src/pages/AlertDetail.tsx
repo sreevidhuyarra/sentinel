@@ -79,6 +79,8 @@ export default function AlertDetail() {
   });
   const investigate = useMutation({ mutationFn: () => api.investigate(id), onSuccess: (r) => nav(`/reports/${r.report_id}`) });
   const demo = useDemo();
+  // Demo: live investigations are off, so point to a stored report instead.
+  const stored = useQuery({ queryKey: ["stored-reports"], queryFn: api.storedReports, enabled: demo });
 
   if (alert.isLoading) return <Loading />;
   if (alert.error) return <ErrorBox error={alert.error} />;
@@ -86,6 +88,10 @@ export default function AlertDetail() {
   const shared = (a.evidence as { explained_by?: number } | null)?.explained_by;
   const reasons = a.reasons?.length ? a.reasons : (sharedAlert.data?.reasons ?? null);
   const emailText = (a.evidence as { email_text?: string } | null)?.email_text;
+  const reportsList = stored.data ?? [];
+  const own = reportsList.find((r) => r.alert_id === a.id);
+  const sameCampaign = reportsList.find((r) => r.src_ip === a.src_ip && r.dst_ip === a.dst_ip && r.predicted_family === a.predicted_family);
+  const sameFamily = reportsList.find((r) => r.predicted_family === a.predicted_family);
 
   return (
     <div className="space-y-4">
@@ -94,11 +100,27 @@ export default function AlertDetail() {
           <h1 className="text-lg font-semibold">Alert #{a.id}: <Family name={a.predicted_family} /></h1>
           <div className="mt-1 flex items-center gap-2 text-sm text-ink-2"><SeverityBadge level={a.severity} /> {fmtTime(a.ts)} · detector: {a.detector}</div>
         </div>
-        <Button onClick={() => investigate.mutate()} disabled={investigate.isPending}>
-          {investigate.isPending ? "Investigating… (seconds with Gemini, ~1 min locally)" : demo ? "Open the copilot's report" : "Investigate with Copilot"}
-        </Button>
+        {!demo ? (
+          <Button onClick={() => investigate.mutate()} disabled={investigate.isPending}>
+            {investigate.isPending ? "Investigating… (seconds with Gemini, ~1 min locally)" : "Investigate with Copilot"}
+          </Button>
+        ) : own ? (
+          <Button onClick={() => nav(`/reports/${own.report_id}`)}>Open the copilot's report</Button>
+        ) : null}
       </div>
       {investigate.error && <ErrorBox error={investigate.error} />}
+      {demo && !own && stored.isSuccess && (
+        <div className="rounded-md border border-line bg-surface p-3 text-sm text-ink-2">
+          The copilot writes its incident report with an LLM, so live investigations are turned off in this public demo.{" "}
+          {sameCampaign ? (
+            <>Open its <Link className="underline" to={`/reports/${sameCampaign.report_id}`}>report on this campaign</Link> (written for alert #{sameCampaign.alert_id}, same source, target and family).</>
+          ) : sameFamily ? (
+            <>Open its <Link className="underline" to={`/reports/${sameFamily.report_id}`}>report on another {a.predicted_family} alert</Link> (#{sameFamily.alert_id}).</>
+          ) : reportsList.length ? (
+            <>Stored reports: {reportsList.map((r, i) => <span key={r.report_id}>{i ? ", " : ""}<Link className="underline" to={`/reports/${r.report_id}`}>#{r.alert_id} {r.predicted_family}</Link></span>)}.</>
+          ) : null}
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card title="Flow">
