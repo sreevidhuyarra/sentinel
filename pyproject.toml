@@ -5,7 +5,7 @@ description = "AI-powered threat detection and response platform (local-first SO
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "polars>=1.8",
+    "polars>=2.1.0",
     "pyarrow>=17",
     "pandas>=2.2",
     "numpy>=1.26",
