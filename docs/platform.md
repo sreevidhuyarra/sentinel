@@ -147,6 +147,60 @@ and `/metrics` stay open for health checks and Prometheus. `sentinel serve --hos
 warns if no key is set. Grafana, MLflow, Prometheus and Postgres have no auth of their own
 here, so keep them on localhost.
 
+### Real traffic: packet captures
+
+`sentinel stream pcap <capture.pcap | folder>` scores real network traffic instead of the
+replayed dataset:
+
+1. **Extract flows.** The flows are computed by DistriNet's corrected CICFlowMeter, the tool
+   that produced the training data, pinned to commit `4dd5319`. It runs in Docker with no
+   network access (`docker compose --profile pcap build flowmeter` builds it once). A
+   re-implementation of the 82 features would differ in small ways (flow timeouts, FIN
+   handling, active and idle times) that silently shift what the models see.
+2. **Parse as in training.** The CSVs go through the same parser as the dataset ingest
+   (`data.ingest.parse_flow_csv`), with the same rule for undefined rates.
+3. **Score.** Every flow is scored by the deployed detector, and a summary is written to
+   `reports/pcap/<name>.json`: alerts by family and detector, the busiest sources, and the
+   most confident alerts. `--publish` also streams the flows to `net.flows`, so the stream
+   detector stores the alerts and they appear in the dashboard.
+
+Captures carry no labels, so the summary reports what the detector thinks, not accuracy.
+Expect false alarms on traffic unlike CIC-IDS2017: the cross-network study found that these
+models do not transfer between networks.
+
+Path check: 6,000 flows from the Friday CSV (output of the same tool) went through steps 2
+and 3. All 82 inputs were mapped, and the verdicts matched the labels: 1,713 PortScan alerts
+for 1,715 PortScan flows, 1,052 DDoS for 1,052. Bot was mostly missed (9 of 62), the known
+weak spot. The sample includes training-period rows, so this checks the plumbing, not
+accuracy.
+
+### Security checks in CI
+
+Three workflows keep the project itself secure:
+
+- **Dependencies (`security.yml`).** `pip-audit` checks every locked Python dependency, and
+  `npm audit` checks the dashboard's packages, build tools included. It runs on every push and
+  pull request, and weekly, because new advisories appear for unchanged dependencies.
+  - The CPU build of PyTorch is not on PyPI, so it is audited under its plain version number.
+  - One advisory is ignored, with the reason, until a fix exists: nltk's model-file path
+    handling (PYSEC-2026-3740). nltk arrives only through Evidently, and Sentinel never calls
+    the affected APIs.
+- **Secrets (`security.yml`).** gitleaks scans the whole git history for API keys, tokens
+  and private keys.
+- **Code scanning (`codeql.yml`).** GitHub's CodeQL analyses the Python service and the
+  TypeScript dashboard with the `security-extended` queries. Findings appear under the
+  repository's Security tab.
+- **Updates (`.github/dependabot.yml`).** Weekly pull requests for Python (uv), npm, GitHub
+  Actions and Docker base images. Minor and patch updates are grouped into one pull request per
+  ecosystem, and every update must pass CI and the audits before it can be merged.
+
+When the checks were added, the audit found known vulnerabilities in 11 locked packages,
+including Pillow (39 advisories), aiohttp, filelock, GitPython, mlflow and Werkzeug, and one in
+Vite. All were upgraded to fixed versions; the test suite passes on them, and the MLflow 3.17
+client still loads every production model from the 3.16 server. The demo Space stays on
+Pillow 12.3 because Gradio 6.31 requires Pillow below 13. The Pillow advisories concern image
+decoding, which the demo never does.
+
 ### Public demo (Hugging Face Spaces)
 
 `SENTINEL_DEMO=1` turns the API into a read-only public demo (`sentinel/demo.py`):

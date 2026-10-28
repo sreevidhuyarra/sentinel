@@ -233,6 +233,22 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
 - Screenshots in docs/images come from the live dashboard (headless Chrome via
   puppeteer-core in the scratchpad, not a project dependency).
 
+## Packet captures (2026-10-29, in progress)
+- src/sentinel/stream/pcap.py + `sentinel stream pcap`: DistriNet CICFlowMeter fork (pinned
+  4dd5319, compose profile `pcap`, image sentinel-flowmeter:4dd5319) -> parse_flow_csv (shared
+  with ingest) -> detector summary / --publish to net.flows. Docker run uses --network none.
+- Building the fork (external Gradle build) was blocked by the auto-mode classifier: needs
+  the user's explicit OK. Not yet run on a real capture.
+
+## Security checks (2026-10-29)
+- .github/workflows/security.yml (pip-audit on `uv export`, torch +cpu mapped to plain
+  version; npm audit; gitleaks over full history), codeql.yml (python + js/ts,
+  security-extended), dependabot.yml (uv, npm, actions, docker; grouped minor/patch).
+- Ignored: PYSEC-2026-3740 (nltk via evidently, unused API, no fix). Space pins pillow 12.3.0
+  (gradio 6.31 needs <13). MLflow client 3.17 vs compose server 3.16: works; server not
+  upgraded (DB migration would be one-way; user's call).
+- uv lives at %APPDATA%\Python\Python312\Scripts\uv.exe (not on PATH).
+
 ## Public demo (2026-10-28)
 - SENTINEL_DEMO=1 (src/sentinel/demo.py): bundled models only (no MLflow), SQLite snapshot
   (`sentinel demo snapshot`, data/demo/, git-ignored), feedback + robustness run -> 403,

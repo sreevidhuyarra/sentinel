@@ -13,7 +13,14 @@ from sentinel.data.columns import ID_COLUMNS, LABEL_COLUMNS, normalize_columns
 log = get_logger(__name__)
 
 DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-_TS_FORMATS = ["%Y-%m-%d %H:%M:%S%.f", "%Y-%m-%d %H:%M:%S", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M"]
+# The corrected release, the original release, and CICFlowMeter's own output (12-hour clock).
+_TS_FORMATS = [
+    "%Y-%m-%d %H:%M:%S%.f",
+    "%Y-%m-%d %H:%M:%S",
+    "%d/%m/%Y %H:%M:%S",
+    "%d/%m/%Y %H:%M",
+    "%d/%m/%Y %I:%M:%S %p",
+]
 _TEXT_COLUMNS = frozenset(ID_COLUMNS + LABEL_COLUMNS)
 
 
@@ -30,7 +37,9 @@ def _parse_ts(col: str) -> pl.Expr:
     )
 
 
-def read_flow_csv(path: Path) -> pl.DataFrame:
+def parse_flow_csv(path: Path) -> pl.DataFrame:
+    """A CICFlowMeter CSV with canonical column names, numeric features and a `ts` column.
+    Shared by the dataset ingest and by live captures (sentinel.stream.pcap)."""
     df = normalize_columns(pl.read_csv(path, infer_schema_length=100_000, encoding="utf8-lossy"))
     # The original release stores 'Infinity' / 'NaN' as text in some numeric columns.
     numeric_fix = [
@@ -38,14 +47,19 @@ def read_flow_csv(path: Path) -> pl.DataFrame:
         for c, t in df.schema.items()
         if t == pl.String and c not in _TEXT_COLUMNS
     ]
-    df = df.with_columns(numeric_fix).with_columns(
-        pl.col("label").str.strip_chars(),
-        pl.lit(day_from_filename(path)).alias("day"),
-    )
+    df = df.with_columns(numeric_fix)
     if "timestamp" in df.columns:
         df = df.with_columns(_parse_ts("timestamp").alias("ts")).drop("timestamp")
     else:
         df = df.with_columns(pl.lit(None, dtype=pl.Datetime("us")).alias("ts"))
+    return df
+
+
+def read_flow_csv(path: Path) -> pl.DataFrame:
+    df = parse_flow_csv(path).with_columns(
+        pl.col("label").str.strip_chars(),
+        pl.lit(day_from_filename(path)).alias("day"),
+    )
     log.info("read %s: %d rows, %d columns", path.name, df.height, df.width)
     return df
 

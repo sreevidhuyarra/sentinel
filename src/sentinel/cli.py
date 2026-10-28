@@ -547,6 +547,60 @@ def stream_replay(
     typer.echo(f"replayed {n} flows")
 
 
+@stream_app.command("pcap")
+def stream_pcap(
+    capture: Path = typer.Argument(..., help="a .pcap/.pcapng file, or a folder of them"),
+    publish: bool = typer.Option(False, help="also stream the flows to net.flows"),
+    rate: float = typer.Option(
+        0, help="flows per second when publishing (0 = as fast as possible)"
+    ),
+    out: Path | None = typer.Option(None, help="summary JSON (default: reports/pcap/<name>.json)"),
+    image: str = typer.Option("sentinel-flowmeter:4dd5319", help="CICFlowMeter image"),
+    params_file: Path | None = None,
+) -> None:
+    """Extract flows from packet captures with CICFlowMeter and score them."""
+    import polars as pl
+
+    from sentinel.services.api import load_production_models
+    from sentinel.stream.detector import required_inputs
+    from sentinel.stream.pcap import (
+        analyze,
+        captures_in,
+        extract_flows,
+        flows_to_rows,
+        read_capture_csv,
+    )
+
+    p = load_params(params_file)
+    detector = load_production_models().detector
+    inputs = required_inputs(detector)
+    pcaps = captures_in(capture)
+    name = capture.stem if capture.is_file() else capture.name
+    flow_dir = p.resolve(Path("data/interim/pcap")) / name
+    csvs = extract_flows(pcaps, flow_dir, image=image)
+    flows = pl.concat([read_capture_csv(c, inputs) for c in csvs], how="diagonal_relaxed")
+    summary = analyze(flows, detector, inputs) | {"flow_csvs": [str(c) for c in csvs]}
+    out = out or p.resolve(Path("reports/pcap")) / f"{name}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
+    typer.echo(
+        f"{summary['flows']} flows, {summary['alerts']} alerts "
+        f"({100 * summary['alert_share']:.2f}%), {summary['review_flags']} review flags"
+    )
+    for fam, n in summary["by_family"].items():
+        typer.echo(f"  {fam}: {n}")
+    typer.echo(f"summary: {out}")
+    if publish:
+        from confluent_kafka import Producer
+
+        from sentinel.common.config import get_settings
+        from sentinel.stream.replayer import replay
+
+        producer = Producer({"bootstrap.servers": get_settings().kafka_bootstrap})
+        n = replay(producer, flows_to_rows(flows), inputs, p.stream.flows_topic, rate)
+        typer.echo(f"published {n} flows to {p.stream.flows_topic}")
+
+
 @stream_app.command("detect")
 def stream_detect(params_file: Path | None = None) -> None:
     """Consume net.flows, score in micro-batches, store alerts, publish alerts.new."""

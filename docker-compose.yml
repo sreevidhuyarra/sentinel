@@ -167,6 +167,16 @@ services:
       - ./data:/app/data:ro
     depends_on: *sentinel-deps
 
+  # Packet captures -> flows: DistriNet's corrected CICFlowMeter, the tool that produced the
+  # training data, pinned to one commit. Build once, then `sentinel stream pcap <capture>`
+  # runs it per capture (no network access):
+  #   docker compose --profile pcap build flowmeter
+  flowmeter:
+    profiles: ["pcap"]
+    image: sentinel-flowmeter:4dd5319
+    build:
+      context: https://github.com/GintsEngelen/CICFlowMeter.git#4dd5319ad36457010d7a406505790b17a5828108
+
 volumes:
   pgdata:
   mlflow:

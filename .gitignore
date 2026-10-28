@@ -21,6 +21,12 @@ data/cache/
 data/demo/
 # Staged Hugging Face Space (scripts/stage_hf_space.py)
 build/
+# Packet captures and what is derived from them (real traffic: hosts, addresses) stay local
+*.pcap
+*.pcapng
+*.cap
+data/pcap/
+reports/pcap/
 # Copilot evaluation run log and resume checkpoint (the final rows are eval_rows.json)
 reports/copilot/eval_run.log
 reports/copilot/*.partial.jsonl
