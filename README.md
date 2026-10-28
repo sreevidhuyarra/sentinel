@@ -5,6 +5,8 @@ attacks and phishing, an LLM copilot that writes cited incident reports, and the
 keeps both honest.**
 
 [![CI](https://github.com/sreevidhuyarra/sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/sreevidhuyarra/sentinel/actions/workflows/ci.yml)
+[![Security](https://github.com/sreevidhuyarra/sentinel/actions/workflows/security.yml/badge.svg)](https://github.com/sreevidhuyarra/sentinel/actions/workflows/security.yml)
+[![CodeQL](https://github.com/sreevidhuyarra/sentinel/actions/workflows/codeql.yml/badge.svg)](https://github.com/sreevidhuyarra/sentinel/actions/workflows/codeql.yml)
 ![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Live demo](https://img.shields.io/badge/live%20demo-Hugging%20Face-orange)](https://sreevidhuyarra-sentinel.hf.space/app/)

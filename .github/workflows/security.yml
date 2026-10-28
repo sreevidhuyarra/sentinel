@@ -1,0 +1,61 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Weekly: new advisories appear for dependencies that have not changed.
+  schedule:
+    - cron: "23 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  # Known vulnerabilities in the locked Python dependencies (PyPI advisory database + OSV).
+  python-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      # The CPU build of torch (2.x.y+cpu) is not on PyPI, so pip-audit would skip it;
+      # advisories are filed against the version, so it is audited as plain torch 2.x.y.
+      - name: Export the locked runtime dependencies
+        run: |
+          uv export --frozen --no-dev --no-hashes --no-emit-project -o requirements-audit.txt
+          sed -i -E 's/^torch==([0-9.]+)\+cpu/torch==\1/' requirements-audit.txt
+      # Ignored, with the reason, until a fixed release exists:
+      # - PYSEC-2026-3740 (nltk path handling in model-artifact APIs; no fixed version). nltk
+      #   arrives only through Evidently, and Sentinel never calls the affected APIs.
+      - name: pip-audit
+        run: >
+          uvx pip-audit -r requirements-audit.txt --no-deps --disable-pip
+          --progress-spinner off --ignore-vuln PYSEC-2026-3740
+
+  # Known vulnerabilities in the dashboard's npm packages, build tools included.
+  frontend-deps:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm audit --audit-level=moderate
+
+  # Secrets committed anywhere in the history (API keys, tokens, private keys).
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.24.3 \
+            git /repo --redact --no-banner --exit-code 1

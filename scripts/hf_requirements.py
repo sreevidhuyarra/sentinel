@@ -9,6 +9,9 @@ Same versions as uv.lock, with two exceptions forced by the Space:
   also runs on CPU hardware) and lets pip pick the NVIDIA libraries that build needs.
 - pydantic: the Space always installs gradio[mcp], which needs pydantic <= 2.12.5; pip picks
   the pydantic-core that version is tied to.
+- pillow: gradio 6.31 needs pillow < 13, so the Space keeps 12.3.0, whose advisories (fixed
+  in 13.0) concern image decoding; the demo decodes no images (email attachments are never
+  opened). Lift this when gradio allows pillow 13.
 Sentinel itself is not listed: the Space installs the requirements before its files are
 copied in, so app.py imports it from src/ instead.
 """
@@ -21,8 +24,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "deploy" / "huggingface" / "gradio" / "requirements.txt"
-OVERRIDES = ["torch==2.13.0", "pydantic==2.12.5", "spaces==0.51.3"]
-DROP = re.compile(r"^(torch|nvidia-[a-z0-9-]+|triton|pydantic|pydantic-core)==", re.I)
+OVERRIDES = ["torch==2.13.0", "pydantic==2.12.5", "pillow==12.3.0", "spaces==0.51.3"]
+DROP = re.compile(r"^(torch|nvidia-[a-z0-9-]+|triton|pydantic|pydantic-core|pillow)==", re.I)
 
 
 def main(locked: Path) -> None:

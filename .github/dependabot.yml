@@ -1,0 +1,31 @@
+# Weekly update pull requests. Minor and patch updates are grouped into one PR per ecosystem;
+# security updates and major versions arrive on their own. CI and the security workflow run on
+# every PR, so an update merges only if tests, audits and code scanning still pass.
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      python-minor:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      frontend-minor:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule: { interval: weekly, day: monday }
