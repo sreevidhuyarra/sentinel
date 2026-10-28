@@ -233,6 +233,13 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
 - Screenshots in docs/images come from the live dashboard (headless Chrome via
   puppeteer-core in the scratchpad, not a project dependency).
 
+## Public demo (2026-10-28)
+- SENTINEL_DEMO=1 (src/sentinel/demo.py): bundled models only (no MLflow), SQLite snapshot
+  (`sentinel demo snapshot`, data/demo/, git-ignored), feedback + robustness run -> 403,
+  investigate -> stored report, scoring 20/min per X-Forwarded-For client, copilot never built.
+- `scripts/stage_hf_space.py` -> build/hf-space (git-ignored; Dockerfile + Space card from
+  deploy/huggingface/). Publishing to the user's HF account is the user's step (PUBLISH.md).
+
 ## Payment / invoice-fraud checks (2026-10-28, `sentinel phishing payment-eval`)
 - `phishing/payment.py`: payment_change, gift_card_request, wire_request, payment_urgency
   (wording; designed on train+val only) -> always review: corpora hold few genuine invoices,

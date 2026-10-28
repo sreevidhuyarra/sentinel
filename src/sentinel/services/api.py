@@ -97,13 +97,14 @@ def _load[T](
     required: bool,
 ) -> tuple[T | None, str | None]:
     """Registry alias first; fall back to the last local training output."""
-    try:
-        import mlflow
+    if not get_settings().sentinel_demo:  # the demo has no MLflow: bundled models only
+        try:
+            import mlflow
 
-        mlflow.set_tracking_uri(get_settings().mlflow_tracking_uri)
-        return from_registry(uri), _with_version(uri)
-    except Exception as exc:  # registry unreachable or alias missing
-        log.warning("registry load of %s failed (%s); trying %s", uri, exc, path)
+            mlflow.set_tracking_uri(get_settings().mlflow_tracking_uri)
+            return from_registry(uri), _with_version(uri)
+        except Exception as exc:  # registry unreachable or alias missing
+            log.warning("registry load of %s failed (%s); trying %s", uri, exc, path)
     if path.exists() or required:
         return from_dir(path), str(path)
     log.warning("no model at %s; the endpoints that need it are disabled", path)
@@ -361,8 +362,9 @@ def create_app(
     `intel` (blocklists and domain age) is built from params.yaml when the models come from
     the registry; tests inject one or run without it.
     """
+    demo = get_settings().sentinel_demo
     if warm_copilot is None:
-        warm_copilot = bundle is None
+        warm_copilot = bundle is None and not demo
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -427,6 +429,10 @@ def create_app(
     instrument(app)
     if api_key:
         protect(app, api_key)
+    if demo:
+        from sentinel.demo import guard
+
+        guard(app)
     app.include_router(dashboard_router)
     app.include_router(feedback_router)
 
@@ -505,6 +511,7 @@ def create_app(
             "anomaly_model_loaded": d is not None and d.anomaly is not None,
             "phishing_model_loaded": getattr(request.app.state, "phishing", None) is not None,
             "url_model_loaded": getattr(request.app.state, "url", None) is not None,
+            "demo": demo,
             "intel": ti.status() if (ti := getattr(request.app.state, "intel", None)) else None,
         }
 
@@ -738,6 +745,8 @@ def create_app(
         A second request for an alert already being investigated (a double click, another
         tab) waits for that run and gets the same report instead of starting another one.
         """
+        if demo:
+            return _stored_report(alert_id, request)
         state = request.app.state
         with state.investigations_lock:
             running: Future[IncidentReport] | None = state.investigations.get(alert_id)
@@ -757,6 +766,27 @@ def create_app(
         finally:
             with state.investigations_lock:
                 state.investigations.pop(alert_id, None)
+
+    def _stored_report(alert_id: int, request: Request) -> IncidentReport:
+        """Demo: the latest stored report for the alert; live investigations are off."""
+        with _db(request).connect() as conn:
+            row = conn.execute(
+                select(reports_table.c.report)
+                .where(reports_table.c.alert_id == alert_id, reports_table.c.status == "done")
+                .order_by(reports_table.c.created.desc())
+                .limit(1)
+            ).first()
+            if row is None:
+                with_reports = conn.execute(
+                    select(reports_table.c.alert_id).distinct().order_by(reports_table.c.alert_id)
+                ).scalars()
+                ids = ", ".join(f"#{a}" for a in with_reports)
+                raise HTTPException(
+                    403,
+                    detail="Live investigations are turned off in the public demo (they call "
+                    f"an LLM). Stored reports exist for alerts {ids}.",
+                )
+        return IncidentReport.model_validate(row[0])
 
     def _investigate(alert_id: int, request: Request) -> IncidentReport:
         from sentinel.copilot.graph import AlertNotFoundError

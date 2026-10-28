@@ -2,7 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { EvasionBars } from "../components/charts";
 import { Button, Card, ErrorBox, Family, Loading } from "../components/ui";
-import { api, pct } from "../lib/api";
+import { api, pct, useDemo } from "../lib/api";
 
 const NAMES: Record<string, string> = {
   ensemble: "Deployed ensemble",
@@ -22,6 +22,7 @@ export default function Robustness() {
   const [delay, setDelay] = useState(3);
   const [family, setFamily] = useState("");
   const run = useMutation({ mutationFn: () => api.robustness({ pad, delay, family: family || null, n_samples: 300 }) });
+  const demo = useDemo();
   const s = study.data;
   const rows = s ? Object.entries(s.problem_space[budget] as Record<string, number | null>)
     .filter(([, v]) => v != null).map(([k, v]) => ({ name: NAMES[k] ?? k, value: v as number }))
@@ -52,7 +53,8 @@ export default function Robustness() {
             <select className={sel} value={family} onChange={(e) => setFamily(e.target.value)}>
               {FAMILIES.map((f) => <option key={f} value={f}>{f || "All families"}</option>)}
             </select></label>
-          <Button type="submit" disabled={run.isPending}>{run.isPending ? "Attacking 300 flows…" : "Run attack"}</Button>
+          <Button type="submit" disabled={run.isPending || demo}>{run.isPending ? "Attacking 300 flows…" : "Run attack"}</Button>
+          {demo && <span className="text-xs text-ink-2">Live attacks need the test flows (1 GB); turned off in the public demo. The study results on this page are from the full run.</span>}
         </form>
         {run.error && <div className="mt-3"><ErrorBox error={run.error} /></div>}
         {run.data && (

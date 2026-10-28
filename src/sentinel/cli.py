@@ -702,13 +702,35 @@ def serve(
 
     key = get_settings().sentinel_api_key
     port = port or get_settings().sentinel_port
-    if not key and host not in ("127.0.0.1", "localhost", "::1"):
+    if get_settings().sentinel_demo:
+        get_logger("sentinel.serve").info(
+            "public demo: read-only snapshot, writes and live investigations off, scoring "
+            "rate-limited"
+        )
+    elif not key and host not in ("127.0.0.1", "localhost", "::1"):
         get_logger("sentinel.serve").warning(
             "serving on %s without SENTINEL_API_KEY: anyone on the network can read alerts "
             "and run the copilot",
             host,
         )
     uvicorn.run(create_app(api_key=key), host=host, port=port)
+
+
+demo_app = typer.Typer(no_args_is_help=True, help="Public read-only demo (Hugging Face Spaces).")
+app.add_typer(demo_app, name="demo")
+
+
+@demo_app.command("snapshot")
+def demo_snapshot(
+    out: Path = typer.Option(Path("data/demo/sentinel_demo.sqlite")),
+) -> None:
+    """Copy a deduplicated slice of the alert database into SQLite for the demo."""
+    from sentinel.common.config import get_settings
+    from sentinel.db.schema import make_engine
+    from sentinel.demo import snapshot
+
+    counts = snapshot(make_engine(get_settings().postgres_url), out)
+    typer.echo(json.dumps(counts, indent=2))
 
 
 if __name__ == "__main__":

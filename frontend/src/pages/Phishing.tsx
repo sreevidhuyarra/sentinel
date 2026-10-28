@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button, Card, ErrorBox, SeverityBadge } from "../components/ui";
-import { api, pct, type EmailFeedback } from "../lib/api";
+import { api, pct, useDemo, type EmailFeedback } from "../lib/api";
 
 type Result = {
   is_malicious: boolean;
@@ -103,6 +103,9 @@ function Verdict({ r, email }: { r: Result; email: EmailFeedback["email"] }) {
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["feedback-summary"] }),
   });
+  if (useDemo()) {
+    return <p className="mt-3 border-t border-line pt-3 text-xs text-ink-2">Analysts label each checked email as phishing or legitimate here, building fresh test data. Turned off in the public demo.</p>;
+  }
   return (
     <div className="mt-3 border-t border-line pt-3 text-sm">
       {send.data ? (

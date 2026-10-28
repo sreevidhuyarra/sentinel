@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
 import { Loading } from "./components/ui";
+import { useDemo } from "./lib/api";
 
 // One chunk per page: the chart library loads only with the pages that draw charts.
 const Overview = lazy(() => import("./pages/Overview"));
@@ -20,6 +21,7 @@ const NAV = [
 ] as const;
 
 export default function App() {
+  const demo = useDemo();
   return (
     <div className="min-h-screen">
       <header className="border-b border-line bg-surface">
@@ -35,6 +37,15 @@ export default function App() {
           </nav>
         </div>
       </header>
+      {demo && (
+        <div className="border-b border-line bg-surface">
+          <p className="mx-auto max-w-7xl px-4 py-2 text-xs text-ink-2">
+            <span className="font-semibold text-ink">Public demo.</span> Alerts are a recorded replay of the CIC-IDS2017 test traffic, and copilot reports are stored ones.
+            The phishing check runs live: domains in a checked email are looked up in blocklists and RDAP, and nothing you paste is stored.{" "}
+            <a className="underline" href="https://github.com/sreevidhuyarra/sentinel" target="_blank" rel="noreferrer">Code and full results on GitHub</a>
+          </p>
+        </div>
+      )}
       <main className="mx-auto max-w-7xl px-4 py-5">
         <Suspense fallback={<Loading />}>
         <Routes>

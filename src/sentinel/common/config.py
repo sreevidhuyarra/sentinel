@@ -377,6 +377,9 @@ class Settings(BaseSettings):
     sentinel_api_key: str | None = None
     # `sentinel serve` port (the docker-compose API uses the same variable on the host side).
     sentinel_port: int = 8000
+    # Public read-only demo (sentinel.demo): local model bundles only, writes and live
+    # investigations off, scoring rate-limited.
+    sentinel_demo: bool = False
 
 
 def load_params(path: Path | None = None) -> Params:

@@ -147,6 +147,26 @@ and `/metrics` stay open for health checks and Prometheus. `sentinel serve --hos
 warns if no key is set. Grafana, MLflow, Prometheus and Postgres have no auth of their own
 here, so keep them on localhost.
 
+### Public demo (Hugging Face Spaces)
+
+`SENTINEL_DEMO=1` turns the API into a read-only public demo (`sentinel/demo.py`):
+
+- **Bundled models only.** It loads the local model bundles and never contacts MLflow, and
+  the copilot's models are never loaded.
+- **A snapshot instead of Postgres.** `sentinel demo snapshot` copies the alert database into
+  a 23 MB SQLite file: one alert per replayed flow (38,521 of the ~324,000 rows that repeated
+  replays had written), every alert a stored report refers to, the reports, drift checks
+  and retraining runs.
+- **Writes and spending are off.** Analyst feedback and the live evasion run return 403.
+  "Investigate" opens the stored report for an alert instead of calling an LLM.
+- **Rate-limited.** Scoring allows 20 requests a minute per visitor (the first
+  `X-Forwarded-For` address behind the Spaces proxy).
+- **A banner** in the dashboard says what is recorded and what runs live.
+
+The phishing check runs live, including blocklists and RDAP lookups. `scripts/stage_hf_space.py`
+assembles the Space (code, deployed bundles, policies, snapshot; about 320 MB) and refuses to
+include `.env` or Phishing Pot data. `deploy/huggingface/PUBLISH.md` has the steps.
+
 ## API
 
 ```bash

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ReasonBars } from "../components/charts";
 import { Button, Card, Empty, ErrorBox, Family, Loading, ReviewStatus, SeverityBadge } from "../components/ui";
-import { api, fmtTime, type Alert, type AlertVerdict } from "../lib/api";
+import { api, fmtTime, useDemo, type Alert, type AlertVerdict } from "../lib/api";
 
 const ATTACK_FAMILIES = ["DoS", "DDoS", "PortScan", "BruteForce", "WebAttack", "Bot", "Infiltration"];
 
@@ -22,8 +22,18 @@ function Feedback({ alert }: { alert: Alert }) {
       qc.invalidateQueries({ queryKey: ["feedback-summary"] });
     },
   });
+  const demo = useDemo();
   const sel = "rounded-md border border-line bg-surface px-2 py-1 text-sm";
   const last = history.data?.[0];
+  if (demo) {
+    return (
+      <Card title="Analyst verdict" actions={<ReviewStatus status={alert.status} />}>
+        <p className="text-xs text-ink-2">
+          Analysts mark each alert as a confirmed attack or a false alarm here. Their verdicts feed the live precision on Model health and label flows for retraining. Turned off in the public demo.
+        </p>
+      </Card>
+    );
+  }
   return (
     <Card title="Analyst verdict" actions={<ReviewStatus status={alert.status} />}>
       <p className="mb-3 text-xs text-ink-2">
@@ -60,12 +70,21 @@ export default function AlertDetail() {
   const nav = useNavigate();
   const alert = useQuery({ queryKey: ["alert", id], queryFn: () => api.alert(id) });
   const related = useQuery({ queryKey: ["related", id], queryFn: () => api.related(id), enabled: alert.isSuccess });
+  // A campaign's explanation is computed once; members without their own show the shared one.
+  const sharedId = (alert.data?.evidence as { explained_by?: number } | null)?.explained_by;
+  const sharedAlert = useQuery({
+    queryKey: ["alert", sharedId],
+    queryFn: () => api.alert(sharedId!),
+    enabled: sharedId != null && sharedId !== id && !alert.data?.reasons?.length,
+  });
   const investigate = useMutation({ mutationFn: () => api.investigate(id), onSuccess: (r) => nav(`/reports/${r.report_id}`) });
+  const demo = useDemo();
 
   if (alert.isLoading) return <Loading />;
   if (alert.error) return <ErrorBox error={alert.error} />;
   const a = alert.data!;
   const shared = (a.evidence as { explained_by?: number } | null)?.explained_by;
+  const reasons = a.reasons?.length ? a.reasons : (sharedAlert.data?.reasons ?? null);
   const emailText = (a.evidence as { email_text?: string } | null)?.email_text;
 
   return (
@@ -76,7 +95,7 @@ export default function AlertDetail() {
           <div className="mt-1 flex items-center gap-2 text-sm text-ink-2"><SeverityBadge level={a.severity} /> {fmtTime(a.ts)} · detector: {a.detector}</div>
         </div>
         <Button onClick={() => investigate.mutate()} disabled={investigate.isPending}>
-          {investigate.isPending ? "Investigating… (seconds with Gemini, ~1 min locally)" : "Investigate with Copilot"}
+          {investigate.isPending ? "Investigating… (seconds with Gemini, ~1 min locally)" : demo ? "Open the copilot's report" : "Investigate with Copilot"}
         </Button>
       </div>
       {investigate.error && <ErrorBox error={investigate.error} />}
@@ -104,7 +123,7 @@ export default function AlertDetail() {
           )}
         </Card>
         <Card title={a.source === "email" ? "Sentences that raised the score" : "Why the model flagged it (SHAP)"} className="lg:col-span-2">
-          {a.reasons?.length ? <ReasonBars reasons={a.reasons} /> : <Empty>No explanation stored for this alert.</Empty>}
+          {reasons?.length ? <ReasonBars reasons={reasons} /> : sharedAlert.isLoading ? <Loading /> : <Empty>No explanation stored for this alert.</Empty>}
           {shared && <p className="mt-2 text-xs text-ink-2">Shared explanation: computed once for this campaign on <Link className="underline" to={`/alerts/${shared}`}>alert #{shared}</Link> (same source, target and family in the same micro-batch).</p>}
           {emailText && <details className="mt-3 text-sm"><summary className="cursor-pointer text-ink-2">Email text (untrusted)</summary><pre className="mt-2 whitespace-pre-wrap text-xs">{emailText}</pre></details>}
         </Card>

@@ -1,4 +1,5 @@
 // Thin typed client for the Sentinel API (same origin: /app is served by the API).
+import { useQuery } from "@tanstack/react-query";
 
 export type Alert = {
   id: number;
@@ -99,6 +100,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  health: () => call<{ status: string; demo?: boolean }>(`/health`),
   overview: (minutes: number) => call<Overview>(`/stats/overview?minutes=${minutes}`),
   throughput: (minutes: number) =>
     call<{ available: boolean; points: Array<{ t: string; flows_per_s: number }> }>(`/stats/throughput?minutes=${minutes}`),
@@ -135,6 +137,12 @@ export const api = {
   robustness: (body: { pad: number; delay: number; family: string | null; n_samples: number }) =>
     call<Record<string, any>>(`/robustness/run`, { method: "POST", body: JSON.stringify(body) }),
 };
+
+// True on the public read-only demo, where writes and live investigations are off.
+export function useDemo(): boolean {
+  const h = useQuery({ queryKey: ["health"], queryFn: api.health, staleTime: Infinity });
+  return h.data?.demo === true;
+}
 
 export function fmtTime(iso: string | null | undefined): string {
   if (!iso) return "—";
