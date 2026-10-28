@@ -26,6 +26,7 @@ build/
 *.pcapng
 *.cap
 data/pcap/
+data/interim/pcap/
 reports/pcap/
 # Copilot evaluation run log and resume checkpoint (the final rows are eval_rows.json)
 reports/copilot/eval_run.log
