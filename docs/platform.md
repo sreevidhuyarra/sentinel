@@ -165,9 +165,16 @@ replayed dataset:
      shift the models' inputs.
    - **Why not a re-implementation.** It would differ in small ways (flow timeouts, FIN
      handling, active and idle times) that shift the features the same way.
+   - **pcapng.** That version only picks up files named `.pcap`, but libpcap reads pcapng
+     too, so captures are copied in under a `.pcap` name.
 2. **Parse as in training.** The CSVs go through the same parser as the dataset ingest
    (`data.ingest.parse_flow_csv`), with the same rule for undefined rates.
-3. **Score.** Every flow is scored by the deployed detector, and a summary is written to
+   - **IPv4 only.** The tool cannot parse IPv6. Some IPv6 packets are discarded, and the
+     rest come out as protocol-0 flows with no ports, "from" 134.221.x.x. That address is
+     the IPv6 EtherType (`0x86DD`) read as an IP address. Those flows are skipped and
+     counted (`unreadable_skipped`). Scoring them would judge the parser, not the traffic.
+     The training lab was almost all IPv4 (1,443 such flows in 1.8 million).
+3. **Score.** Every readable flow is scored by the deployed detector, and a summary is written to
    `reports/pcap/<name>.json`: alerts by family and detector, the busiest sources, and the
    most confident alerts. `--publish` also streams the flows to `net.flows`, so the stream
    detector stores the alerts and they appear in the dashboard.
@@ -181,6 +188,63 @@ and 3. All 82 inputs were mapped, and the verdicts matched the labels: 1,713 Por
 for 1,715 PortScan flows, 1,052 DDoS for 1,052. Bot was mostly missed (9 of 62), the known
 weak spot. The sample includes training-period rows, so this checks the plumbing, not
 accuracy.
+
+**First real network (a home network, 15 minutes of normal use).** The capture held 11,371
+flows, and 7,328 of them were unreadable IPv6 rows, which were skipped. Of the 4,043 readable
+flows, the detector flagged **520 (12.9%)**. All of them are false alarms, since the traffic
+was normal.
+
+| Where the alerts came from | Alerts |
+|---|---|
+| LAN device discovery (LLMNR, WS-Discovery, SSDP, mDNS, NetBIOS) | 444 (85%) |
+| Other local traffic | 55 |
+| Internet-bound traffic | 21 (of 143 such flows) |
+
+The 196 "PortScan" verdicts were WS-Discovery and SSDP: devices asking the whole network
+who is there, which looks like a scan to a model trained in a lab with almost none of that
+chatter. This is the cross-network gap measured from raw packets. Without tuning to the
+local network, the models are not ready to run on it.
+
+The capture and anything derived from it stay local. Only these counts are published.
+
+### Site tuning
+
+A security team fixes that gap by tuning to its own network, and `sentinel stream
+pcap-baseline <normal capture> --site <name>` does the same. The lab models are not changed.
+A local profile (`data/site/<name>.json`, git-ignored) changes two things, for that network
+only:
+
+- **Discovery allowlist.** A (protocol, port) pair the baseline sends to multicast or
+  broadcast addresses at least 5 times raises no alert. Only those destinations qualify:
+  such packets stay on the LAN and cannot carry a session to the internet.
+- **Anomaly threshold.** The threshold is raised, never lowered, to the score that 1% of the
+  baseline's other flows exceed. This is the lab's own rule, applied to this network.
+
+Supervised verdicts on all other flows stand. `sentinel stream pcap <capture> --site <name>`
+applies the profile.
+
+The command measures before it saves. It learns on the first 60% of the capture (by time),
+checks the last 40%, and checks the CIC-IDS2017 test split for the detection the profile
+costs. Then it refits on the whole capture. On the home capture:
+
+| | Before | After |
+|---|---|---|
+| Held-out home flows alerted (1,618) | 196 (12.1%) | 2 (0.12%) |
+| Lab test attack recall | 99.69% | 99.62% |
+| Lab test benign false alarms | 1.02% | 0.06% |
+
+The profile allowlisted 11 discovery services and raised the anomaly threshold about
+sixfold, from 0.18 to 1.14. The only family that lost ground was Web Attack, with 21 of 22
+caught instead of 22. The others moved by at most 0.1 points.
+
+Limits:
+- **Same session.** The held-out part is the same 15-minute session, so it is an optimistic
+  check. The real test is a capture from another day.
+- **Known families.** The lab families are mostly caught by the supervised model. A higher
+  anomaly threshold weakens the anomaly detector's job, catching attacks unlike anything in
+  training. The held-out-family study would put a number on that.
+- **A blind spot.** An attacker who stays on an allowlisted LAN discovery service is not
+  alerted on. That is the trade made to stop the noise.
 
 ### Security checks in CI
 

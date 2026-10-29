@@ -242,6 +242,17 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
   adds retrans columns, changes subflow/init-win maths (found on a smoke pcap).
 - Building external code is blocked by the auto-mode classifier: the user runs the build.
 - Smoke capture: scratchpad make_smoke_pcap.py (5 benign HTTP connections) -> data/pcap/.
+- 55f60ad only reads files named *.pcap (copies are renamed) and cannot parse IPv6: those
+  become protocol-0, port-0 flows from 134.221.x.x (= EtherType 0x86DD); `readable()` drops
+  them and the summary counts `unreadable_skipped`.
+- User's home capture (data/pcap/home.pcapng, local only, 2026-10-30): 11,371 flows, 7,328
+  unreadable IPv6; 520/4,043 alerts (12.9%), ~85% on LAN multicast/broadcast discovery
+  (LLMNR, WS-Discovery, SSDP, mDNS); internet-bound flows 21 alerts of 143.
+- Site tuning (src/sentinel/stream/site.py, `stream pcap-baseline --site NAME`, `stream pcap
+  --site NAME`): multicast/broadcast discovery allowlist (>= 5 flows) + anomaly threshold
+  raised (never lowered) to the baseline's 1% quantile. Local only (data/site/, git-ignored).
+  Home: held-out 196 -> 2 alerts; lab test recall 99.69 -> 99.62%, benign FPR 1.02 -> 0.06%;
+  threshold 0.18 -> 1.14. Held-out is the same session (optimistic); needs another-day check.
 
 ## Security checks (2026-10-29)
 - .github/workflows/security.yml (pip-audit on `uv export`, torch +cpu mapped to plain

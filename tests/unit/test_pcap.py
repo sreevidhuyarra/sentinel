@@ -101,6 +101,23 @@ def test_extract_flows_runs_the_pinned_tool_offline(tmp_path: Path, capture_csv:
         extract_flows([pcap], tmp_path / "flows2", run=failing)
 
 
+def test_extract_flows_names_pcapng_copies_pcap(tmp_path: Path) -> None:
+    """The pinned tool skips files not ending in .pcap; libpcap still reads pcapng."""
+    pcap = tmp_path / "home.pcapng"
+    pcap.write_bytes(b"\x0a\x0d\x0d\x0a")
+    seen: list[str] = []
+
+    def fake_run(cmd: list[str], **kw: Any) -> subprocess.CompletedProcess[str]:
+        inp = Path(next(a for a in cmd if a.endswith(":/tmp/pcap/input:ro")).split(":/tmp")[0])
+        seen.extend(p.name for p in inp.iterdir())
+        out = Path(cmd[cmd.index("-v", cmd.index("-v") + 1) + 1].split(":/tmp")[0])
+        (out / "x_Flow.csv").write_text("")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    extract_flows([pcap], tmp_path / "flows", run=fake_run)
+    assert seen == ["home-0.pcap"]
+
+
 def test_captures_in_finds_pcaps(tmp_path: Path) -> None:
     (tmp_path / "a.pcap").write_bytes(b"")
     (tmp_path / "sub").mkdir()
@@ -137,3 +154,14 @@ def test_analyze_summarises_verdicts(capture_csv: Path) -> None:
     assert s["top_alerts"][0]["dst_port"] == 80 and s["captures"] == ["lab_Flow"]
     rows = list(flows_to_rows(flows))
     assert len(rows) == 2 and "label" not in rows[0]
+    assert s["unreadable_skipped"] == 0
+
+
+def test_unparsed_ipv6_flows_are_skipped(capture_csv: Path) -> None:
+    """The pinned tool turns IPv6 packets into protocol-0, port-0 rows from 134.221.x.x."""
+    garbled = _row("134.221.96.0", 0, "0").replace("-80-6,", "-0-0,").replace(",80,6,", ",0,0,")
+    capture_csv.write_text(capture_csv.read_text() + garbled + "\n")
+    flows = read_capture_csv(capture_csv, INPUTS)
+    s = analyze(flows, FakeDetector(), INPUTS)
+    assert (flows.height, s["flows"], s["unreadable_skipped"]) == (3, 2, 1)
+    assert len(list(flows_to_rows(flows))) == 2

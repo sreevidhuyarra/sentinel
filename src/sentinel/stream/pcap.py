@@ -30,6 +30,7 @@ import polars as pl
 from sentinel.common.logging import get_logger
 from sentinel.data.columns import feature_columns
 from sentinel.data.ingest import parse_flow_csv
+from sentinel.stream.site import SiteProfile
 
 log = get_logger(__name__)
 
@@ -61,8 +62,11 @@ def extract_flows(
     with tempfile.TemporaryDirectory(prefix="sentinel-pcap-") as tmp:
         inp = Path(tmp) / "input"
         inp.mkdir()
-        for p in pcaps:  # the tool reads a folder; copy so only these captures are read
-            shutil.copy2(p, inp / p.name)
+        # The tool reads a folder; copy so only these captures are read. It only picks up
+        # names ending in .pcap, though libpcap reads pcapng too, so every copy gets that suffix.
+        for i, p in enumerate(pcaps):
+            name = f"{p.stem}.pcap" if p.suffix.lower() == ".pcap" else f"{p.stem}-{i}.pcap"
+            shutil.copy2(p, inp / name)
         cmd = [
             "docker", "run", "--rm", "--network", "none",
             "-v", f"{inp.resolve()}:/tmp/pcap/input:ro",
@@ -95,15 +99,39 @@ def read_capture_csv(path: Path, inputs: Sequence[str]) -> pl.DataFrame:
     return df.with_columns(pl.lit(path.stem).alias("capture"))
 
 
-def analyze(
+def readable(flows: pl.DataFrame) -> pl.DataFrame:
+    """Drop flows the pinned tool could not parse. It reads IPv4 only: an IPv6 packet comes
+    out as protocol 0 with no ports and an "address" made of header bytes (134.221.x.x is
+    0x86DD, the IPv6 EtherType). Scoring such rows judges the parser, not the traffic."""
+    return flows.filter(
+        ~((pl.col("protocol") == 0) & (pl.col("src_port") == 0) & (pl.col("dst_port") == 0))
+    )
+
+
+def score(
     flows: pl.DataFrame, detector: Any, inputs: Sequence[str], batch: int = 5000
-) -> dict[str, Any]:
-    """Score every flow and summarise: verdicts by family and detector, busiest alert
-    sources, and the most confident alerts with their connection details."""
+) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for start in range(0, flows.height, batch):
         part = flows.slice(start, batch)
         results += detector.predict(part.select(inputs).cast(pl.Float64), explain=False)
+    return results
+
+
+def analyze(
+    flows: pl.DataFrame,
+    detector: Any,
+    inputs: Sequence[str],
+    batch: int = 5000,
+    site: SiteProfile | None = None,
+) -> dict[str, Any]:
+    """Score every readable flow and summarise: verdicts by family and detector, busiest
+    alert sources, and the most confident alerts with their connection details. With a
+    site profile, the alerts it suppresses are cleared and counted."""
+    total = flows.height
+    flows = readable(flows)
+    results = score(flows, detector, inputs, batch)
+    suppressed = site.apply(flows, results) if site else None
     meta = flows.select([c for c in META if c in flows.columns]).to_dicts()
     alerts = [
         {**m, **{k: r[k] for k in ("family", "detector", "confidence", "attack_score")}}
@@ -115,6 +143,7 @@ def analyze(
     top = sorted(alerts, key=lambda a: a.get("attack_score") or 0.0, reverse=True)[:TOP]
     return {
         "flows": len(results),
+        "unreadable_skipped": total - flows.height,
         "alerts": len(flagged),
         "review_flags": sum(1 for r in results if r.get("needs_review")),
         "alert_share": len(flagged) / len(results) if results else 0.0,
@@ -123,13 +152,14 @@ def analyze(
         "top_sources": [{"src_ip": s, "alerts": n} for s, n in sources.most_common(TOP)],
         "top_alerts": [{k: _plain(v) for k, v in a.items()} for a in top],
         "captures": sorted(flows["capture"].unique().to_list()) if "capture" in flows else [],
+        "site": {"name": site.name, "suppressed": suppressed} if site else None,
     }
 
 
 def flows_to_rows(flows: pl.DataFrame) -> Iterator[dict[str, Any]]:
     """Rows for `replayer.replay`, in time order. No `label`/`family`: captures are
     unlabelled, so the stream detector stores no ground truth for them."""
-    yield from flows.sort("ts", nulls_last=True).iter_rows(named=True)
+    yield from readable(flows).sort("ts", nulls_last=True).iter_rows(named=True)
 
 
 def _plain(v: Any) -> Any:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import typer
 
@@ -12,6 +12,8 @@ from sentinel.common.config import Params, load_params
 from sentinel.common.logging import configure_logging
 
 if TYPE_CHECKING:
+    import polars as pl
+
     from sentinel.mlops.watch import DriftWatcher
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
@@ -547,6 +549,89 @@ def stream_replay(
     typer.echo(f"replayed {n} flows")
 
 
+def _capture_flows(
+    capture: Path, image: str, p: Params, inputs: list[str]
+) -> tuple[str, pl.DataFrame, list[Path]]:
+    import polars as pl
+
+    from sentinel.stream.pcap import captures_in, extract_flows, read_capture_csv
+
+    pcaps = captures_in(capture)
+    name = capture.stem if capture.is_file() else capture.name
+    csvs = extract_flows(pcaps, p.resolve(Path("data/interim/pcap")) / name, image=image)
+    flows = pl.concat([read_capture_csv(c, inputs) for c in csvs], how="diagonal_relaxed")
+    return name, flows, csvs
+
+
+@stream_app.command("pcap-baseline")
+def stream_pcap_baseline(
+    capture: Path = typer.Argument(..., help="a capture of this network's NORMAL traffic"),
+    site: str = typer.Option(..., help="profile name: written to data/site/<site>.json"),
+    fpr: float = typer.Option(0.01, help="share of the baseline's flows allowed to alert"),
+    holdout: float = typer.Option(0.4, help="later share of the capture kept for measuring"),
+    lab_check: bool = typer.Option(True, help="measure the cost on the CIC-IDS2017 test split"),
+    image: str = typer.Option("sentinel-flowmeter:55f60ad", help="CICFlowMeter image"),
+    params_file: Path | None = None,
+) -> None:
+    """Learn a site profile (discovery allowlist + anomaly threshold) from normal traffic.
+
+    Measured first: learned on the earlier part of the capture, checked on the later part,
+    and (optionally) on the lab test split for the detection it costs. Then refitted on the
+    whole capture and saved. The profile and report stay local (they describe a network).
+    """
+    import polars as pl
+
+    from sentinel.services.api import load_production_models
+    from sentinel.stream.detector import required_inputs
+    from sentinel.stream.pcap import readable, score
+    from sentinel.stream.site import compare, learn
+
+    p = load_params(params_file)
+    detector = load_production_models().detector
+    if detector.anomaly is None:
+        raise typer.BadParameter("site tuning needs the anomaly detector")
+    inputs = required_inputs(detector)
+    lab_t = detector.anomaly.threshold
+    _, flows, _ = _capture_flows(capture, image, p, inputs)
+    flows = readable(flows).sort("ts", nulls_last=True)
+    cut = int(flows.height * (1 - holdout))
+    fit, check = flows.head(cut), flows.slice(cut)
+    held = learn(site, fit, score(fit, detector, inputs), lab_t, fpr)
+    report: dict[str, Any] = {
+        "site": site,
+        "fpr": fpr,
+        "holdout": compare(held, check, score(check, detector, inputs)),
+    }
+    if lab_check:
+        test = pl.read_parquet(p.resolve(p.data.processed_dir) / "flows.parquet").filter(
+            pl.col("split") == "test"
+        )
+        report["lab_test"] = compare(held, test, score(test, detector, inputs))
+    profile = learn(site, flows, score(flows, detector, inputs), lab_t, fpr)
+    path = p.resolve(Path("data/site")) / f"{site}.json"
+    profile.save(path)
+    report["profile"] = {"allow": profile.allow, "anomaly_threshold": profile.anomaly_threshold}
+    out = p.resolve(Path("reports/pcap")) / f"site-{site}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
+    h = report["holdout"]
+    typer.echo(
+        f"held-out {h['flows']} flows: {h['alerts_before']} -> {h['alerts_after']} alerts "
+        f"({100 * h['alert_share_before']:.2f}% -> {100 * h['alert_share_after']:.2f}%)"
+    )
+    if lab_check:
+        lab = report["lab_test"]
+        typer.echo(
+            f"lab test: attack recall {100 * lab['recall_before']:.2f}% -> "
+            f"{100 * lab['recall_after']:.2f}%, benign false alarms "
+            f"{100 * lab['benign_fpr_before']:.3f}% -> {100 * lab['benign_fpr_after']:.3f}%"
+        )
+    typer.echo(
+        f"profile: {len(profile.allow)} allowlisted services, anomaly threshold "
+        f"{lab_t:.4g} -> {profile.anomaly_threshold:.4g}; {path}\nreport: {out}"
+    )
+
+
 @stream_app.command("pcap")
 def stream_pcap(
     capture: Path = typer.Argument(..., help="a .pcap/.pcapng file, or a folder of them"),
@@ -556,30 +641,23 @@ def stream_pcap(
     ),
     out: Path | None = typer.Option(None, help="summary JSON (default: reports/pcap/<name>.json)"),
     image: str = typer.Option("sentinel-flowmeter:55f60ad", help="CICFlowMeter image"),
+    site: str | None = typer.Option(
+        None, help="apply the site profile data/site/<site>.json (see `stream pcap-baseline`)"
+    ),
     params_file: Path | None = None,
 ) -> None:
     """Extract flows from packet captures with CICFlowMeter and score them."""
-    import polars as pl
-
     from sentinel.services.api import load_production_models
     from sentinel.stream.detector import required_inputs
-    from sentinel.stream.pcap import (
-        analyze,
-        captures_in,
-        extract_flows,
-        flows_to_rows,
-        read_capture_csv,
-    )
+    from sentinel.stream.pcap import analyze, flows_to_rows
+    from sentinel.stream.site import SiteProfile
 
     p = load_params(params_file)
     detector = load_production_models().detector
     inputs = required_inputs(detector)
-    pcaps = captures_in(capture)
-    name = capture.stem if capture.is_file() else capture.name
-    flow_dir = p.resolve(Path("data/interim/pcap")) / name
-    csvs = extract_flows(pcaps, flow_dir, image=image)
-    flows = pl.concat([read_capture_csv(c, inputs) for c in csvs], how="diagonal_relaxed")
-    summary = analyze(flows, detector, inputs) | {"flow_csvs": [str(c) for c in csvs]}
+    profile = SiteProfile.load(p.resolve(Path("data/site")) / f"{site}.json") if site else None
+    name, flows, csvs = _capture_flows(capture, image, p, inputs)
+    summary = analyze(flows, detector, inputs, site=profile) | {"flow_csvs": [str(c) for c in csvs]}
     out = out or p.resolve(Path("reports/pcap")) / f"{name}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
@@ -587,6 +665,17 @@ def stream_pcap(
         f"{summary['flows']} flows, {summary['alerts']} alerts "
         f"({100 * summary['alert_share']:.2f}%), {summary['review_flags']} review flags"
     )
+    if summary["unreadable_skipped"]:
+        typer.echo(
+            f"  skipped {summary['unreadable_skipped']} flows the extractor could not parse "
+            "(IPv6: it reads IPv4 only)"
+        )
+    if summary["site"]:
+        sup = summary["site"]["suppressed"]
+        typer.echo(
+            f"  site {site}: suppressed {sup['allowlist']} (allowlist) "
+            f"+ {sup['threshold']} (anomaly threshold)"
+        )
     for fam, n in summary["by_family"].items():
         typer.echo(f"  {fam}: {n}")
     typer.echo(f"summary: {out}")
