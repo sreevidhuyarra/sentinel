@@ -234,11 +234,14 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
   puppeteer-core in the scratchpad, not a project dependency).
 
 ## Packet captures (2026-10-29, in progress)
-- src/sentinel/stream/pcap.py + `sentinel stream pcap`: DistriNet CICFlowMeter fork (pinned
-  4dd5319, compose profile `pcap`, image sentinel-flowmeter:4dd5319) -> parse_flow_csv (shared
-  with ingest) -> detector summary / --publish to net.flows. Docker run uses --network none.
-- Building the fork (external Gradle build) was blocked by the auto-mode classifier: needs
-  the user's explicit OK. Not yet run on a real capture.
+- src/sentinel/stream/pcap.py + `sentinel stream pcap`: DistriNet CICFlowMeter fork at
+  55f60ad (July 2022, matches the dataset's columns; docker/flowmeter/Dockerfile, compose
+  profile `pcap`, image sentinel-flowmeter:55f60ad) -> parse_flow_csv (shared with ingest)
+  -> detector summary / --publish to net.flows. Docker run uses --network none.
+- Latest fork (4dd5319, 2024) is WRONG for these models: renames Total TCP Flow Time,
+  adds retrans columns, changes subflow/init-win maths (found on a smoke pcap).
+- Building external code is blocked by the auto-mode classifier: the user runs the build.
+- Smoke capture: scratchpad make_smoke_pcap.py (5 benign HTTP connections) -> data/pcap/.
 
 ## Security checks (2026-10-29)
 - .github/workflows/security.yml (pip-audit on `uv export`, torch +cpu mapped to plain

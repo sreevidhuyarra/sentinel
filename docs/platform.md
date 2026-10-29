@@ -152,11 +152,19 @@ here, so keep them on localhost.
 `sentinel stream pcap <capture.pcap | folder>` scores real network traffic instead of the
 replayed dataset:
 
-1. **Extract flows.** The flows are computed by DistriNet's corrected CICFlowMeter, the tool
-   that produced the training data, pinned to commit `4dd5319`. It runs in Docker with no
-   network access (`docker compose --profile pcap build flowmeter` builds it once). A
-   re-implementation of the 82 features would differ in small ways (flow timeouts, FIN
-   handling, active and idle times) that silently shift what the models see.
+1. **Extract flows.** The flows are computed by DistriNet's corrected CICFlowMeter at
+   commit `55f60ad` (29 July 2022). It runs in Docker with no network access. Build it once
+   with `docker compose --profile pcap build flowmeter` (`docker/flowmeter/Dockerfile`).
+   - **Why that version.** It is the one behind the training data. The dataset page names no
+     commit, but its documented changes (Total TCP Duration, ICMP, RST counts, UTC
+     microsecond timestamps, the segmentation-offload fix) end in July 2022. The tool's
+     source at that commit has exactly the dataset's columns.
+   - **Why not the latest.** The newest version (`4dd5319`, 2024) was tried first. It
+     renames Total TCP Flow Time and adds retransmission columns, and its 2023 fixes change
+     how subflows and the backward initial window are computed. Its output would silently
+     shift the models' inputs.
+   - **Why not a re-implementation.** It would differ in small ways (flow timeouts, FIN
+     handling, active and idle times) that shift the features the same way.
 2. **Parse as in training.** The CSVs go through the same parser as the dataset ingest
    (`data.ingest.parse_flow_csv`), with the same rule for undefined rates.
 3. **Score.** Every flow is scored by the deployed detector, and a summary is written to

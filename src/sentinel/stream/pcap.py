@@ -1,10 +1,11 @@
 """Real traffic in: packet captures -> CICFlowMeter flows -> the detector.
 
-Flows are extracted with the corrected CICFlowMeter (DistriNet's fork, pinned to one commit),
-the tool that produced the training data, so every feature is computed exactly as the models
-learned it. A re-implementation would differ in small ways (flow timeouts, FIN handling,
-active/idle times) that silently shift the features. The tool runs in Docker
-(docker/flowmeter); this module only calls it and reads its CSVs.
+Flows are extracted with the corrected CICFlowMeter (DistriNet's fork) at commit 55f60ad
+(July 2022), the version whose features match the training data, so every feature is
+computed as the models learned it. Later versions rename Total TCP Flow Time and change the
+subflow and backward-window calculations; a re-implementation would differ in small ways
+(flow timeouts, FIN handling, active/idle times). Either silently shifts the features. The
+tool runs in Docker (docker/flowmeter); this module only calls it and reads its CSVs.
 
 Two ways out:
 - `analyze`: score every flow locally and summarise (no Kafka or database needed).
@@ -32,7 +33,7 @@ from sentinel.data.ingest import parse_flow_csv
 
 log = get_logger(__name__)
 
-FLOWMETER_IMAGE = "sentinel-flowmeter:4dd5319"
+FLOWMETER_IMAGE = "sentinel-flowmeter:55f60ad"
 PCAP_SUFFIXES = (".pcap", ".pcapng", ".cap")
 META = ("ts", "src_ip", "src_port", "dst_ip", "dst_port", "protocol")
 TOP = 10

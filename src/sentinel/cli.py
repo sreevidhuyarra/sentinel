@@ -555,7 +555,7 @@ def stream_pcap(
         0, help="flows per second when publishing (0 = as fast as possible)"
     ),
     out: Path | None = typer.Option(None, help="summary JSON (default: reports/pcap/<name>.json)"),
-    image: str = typer.Option("sentinel-flowmeter:4dd5319", help="CICFlowMeter image"),
+    image: str = typer.Option("sentinel-flowmeter:55f60ad", help="CICFlowMeter image"),
     params_file: Path | None = None,
 ) -> None:
     """Extract flows from packet captures with CICFlowMeter and score them."""
