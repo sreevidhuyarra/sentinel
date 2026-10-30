@@ -253,7 +253,7 @@ integrated into one app. Design doc: `Sentinel_Project_Report.pdf` (six modules,
   raised (never lowered) to the baseline's 1% quantile. Local only (data/site/, git-ignored).
   Home: held-out 196 -> 2 alerts; lab test recall 99.69 -> 99.62%, benign FPR 1.02 -> 0.06%;
   threshold 0.18 -> 1.14. Another-day check (home2.pcapng, 2026-10-30): 937 -> 71 alerts
-  (14.9% -> 1.1%); the rest are SSDP unicast replies + unidentified LAN UDP, plus 15 HTTPS flows.
+  (14.9% -> 1.1%; 66 after the LAN-reply rule); the rest are SSDP unicast replies + unidentified LAN UDP, plus 15 HTTPS flows.
 
 ## Security checks (2026-10-29)
 - .github/workflows/security.yml (pip-audit on `uv export`, torch +cpu mapped to plain

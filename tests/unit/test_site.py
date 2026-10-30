@@ -10,9 +10,13 @@ import polars as pl
 from sentinel.stream.site import MIN_FLOWS, SiteProfile, compare, learn
 
 
-def _flows(rows: list[tuple[str, int, int]]) -> pl.DataFrame:
+def _flows(
+    rows: list[tuple[str, int, int]], src_ip: str = "10.0.0.9", src_port: int = 50000
+) -> pl.DataFrame:
     return pl.DataFrame(
         {
+            "src_ip": [src_ip] * len(rows),
+            "src_port": [src_port] * len(rows),
             "dst_ip": [d for d, _, _ in rows],
             "protocol": [p for _, p, _ in rows],
             "dst_port": [port for _, _, port in rows],
@@ -38,6 +42,18 @@ def test_learn_allowlists_repeated_lan_discovery_only() -> None:
     flows = _flows(rows)
     p = learn("t", flows, [_result(0.1)] * flows.height, lab_threshold=1.0, fpr=0.01)
     assert p.allow == [(17, 137), (17, 1900)]
+
+
+def test_lan_replies_on_allowlisted_services_are_allowed() -> None:
+    p = SiteProfile("t", [(17, 1900)], 5.0, 1.0, 0.01, 10)
+    reply = _flows([("192.168.1.20", 17, 51103)], src_ip="192.168.1.7", src_port=1900)
+    query = _flows([("172.16.4.2", 17, 1900)], src_ip="172.16.4.9")
+    to_internet = _flows([("93.184.216.34", 17, 51103)], src_ip="192.168.1.7", src_port=1900)
+    from_internet = _flows([("192.168.1.20", 17, 1900)], src_ip="93.184.216.34")
+    other_port = _flows([("192.168.1.20", 17, 51103)], src_ip="192.168.1.7", src_port=1901)
+    tcp = _flows([("192.168.1.20", 6, 51103)], src_ip="192.168.1.7", src_port=1900)
+    flows = pl.concat([reply, query, to_internet, from_internet, other_port, tcp])
+    assert p.allowed(flows).tolist() == [True, True, False, False, False, False]
 
 
 def test_threshold_only_rises() -> None:

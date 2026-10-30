@@ -244,12 +244,18 @@ A second capture, taken a day later, was scored with the saved profile:
 |---|---|
 | Untuned | 937 (14.9%) |
 | With the site profile | 71 (1.1%) |
+| + LAN replies on allowlisted services | 66 (1.05%) |
 
 That is about ten times more than the same-session check suggested. The rest:
 - **Local UDP chatter.** About 50 alerts (mostly "PortScan") were UDP between two or three
   local devices on random high ports: SSDP replies sent to a single device (only requests
-  to the whole network are allowlisted) and small four-packet exchanges that Wireshark
+  to the whole network were allowlisted) and small four-packet exchanges that Wireshark
   cannot identify.
+  - **Fix for the replies.** The allowlist now also covers unicast traffic between two
+    private addresses on an allowlisted service (a reply from its port, or a direct query
+    to it). That removed 5 alerts at no lab cost: recall stays at 99.62%. The rule was
+    written after looking at this capture, so this row is not an independent test. The
+    unidentified exchanges remain.
 - **Internet traffic.** 15 HTTPS flows from one device to the internet, of 225
   internet-bound flows.
 - **Other local TCP.** A handful of TCP flows between local devices.

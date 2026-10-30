@@ -5,7 +5,9 @@ changes two things for that network only:
 - Discovery allowlist: (protocol, destination port) pairs that the baseline sends to
   multicast or broadcast addresses at least MIN_FLOWS times (LLMNR, mDNS, SSDP,
   WS-Discovery...). Flows matching one raise no alert. Only multicast/broadcast destinations
-  qualify: those packets stay on the LAN and cannot carry a session to the internet.
+  qualify: those packets stay on the LAN and cannot carry a session to the internet. The
+  unicast replies and direct queries on those services between two private addresses are
+  covered too, for the same reason.
 - Anomaly threshold: raised, never lowered, to the score that `fpr` of the baseline's other
   flows exceed. This is the same rule that set the lab threshold, applied to this network.
 Supervised verdicts on other flows are unchanged.
@@ -35,6 +37,21 @@ def fanout() -> pl.Expr:
     return first.is_between(224, 239).fill_null(False) | pl.col("dst_ip").str.ends_with(".255")
 
 
+def _private(col: str) -> pl.Expr:
+    """RFC 1918 address (10/8, 172.16/12, 192.168/16)."""
+    octets = pl.col(col).str.split(".")
+    a = octets.list.get(0, null_on_oob=True).cast(pl.Int32, strict=False)
+    b = octets.list.get(1, null_on_oob=True).cast(pl.Int32, strict=False)
+    return ((a == 10) | ((a == 172) & b.is_between(16, 31)) | ((a == 192) & (b == 168))).fill_null(
+        False
+    )
+
+
+def lan() -> pl.Expr:
+    """Both ends are private unicast addresses: the flow stays on the local network."""
+    return _private("src_ip") & _private("dst_ip") & ~fanout()
+
+
 @dataclass
 class SiteProfile:
     name: str
@@ -45,14 +62,24 @@ class SiteProfile:
     baseline_flows: int
 
     def allowed(self, flows: pl.DataFrame) -> np.ndarray:
+        """Discovery to multicast/broadcast on an allowlisted service, or the unicast
+        exchange that follows it between two local devices (a device answering from the
+        service port, or a direct query to it)."""
         if not self.allow:
             return np.zeros(flows.height, dtype=bool)
-        pairs = pl.DataFrame(
-            {"protocol": [p for p, _ in self.allow], "dst_port": [d for _, d in self.allow]},
-            schema={"protocol": flows.schema["protocol"], "dst_port": flows.schema["dst_port"]},
-        )
-        hit = pl.struct("protocol", "dst_port").is_in(pairs.select(pl.struct("*")).to_series())
-        return flows.select(fanout() & hit).to_series().to_numpy()
+        dtype = flows.schema["dst_port"]
+        services = pl.DataFrame(
+            {"p": [p for p, _ in self.allow], "port": [d for _, d in self.allow]},
+            schema={"p": flows.schema["protocol"], "port": dtype},
+        ).select(pl.struct("p", "port").alias("s"))["s"]
+
+        def on(port: str) -> pl.Expr:
+            return pl.struct(pl.col("protocol").alias("p"), pl.col(port).alias("port")).is_in(
+                services
+            )
+
+        rule = (fanout() & on("dst_port")) | (lan() & (on("src_port") | on("dst_port")))
+        return flows.select(rule).to_series().to_numpy()
 
     def apply(self, flows: pl.DataFrame, results: Sequence[dict[str, Any]]) -> dict[str, int]:
         """Clear the alerts this profile suppresses (in place); count them by reason."""
