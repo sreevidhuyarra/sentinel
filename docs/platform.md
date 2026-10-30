@@ -237,9 +237,26 @@ The profile allowlisted 11 discovery services and raised the anomaly threshold a
 sixfold, from 0.18 to 1.14. The only family that lost ground was Web Attack, with 21 of 22
 caught instead of 22. The others moved by at most 0.1 points.
 
+**Another day.** The held-out part above comes from the same session, so it is optimistic.
+A second capture, taken a day later, was scored with the saved profile:
+
+| Second-day capture (6,273 readable flows) | Alerts |
+|---|---|
+| Untuned | 937 (14.9%) |
+| With the site profile | 71 (1.1%) |
+
+That is about ten times more than the same-session check suggested. The rest:
+- **Local UDP chatter.** About 50 alerts (mostly "PortScan") were UDP between two or three
+  local devices on random high ports: SSDP replies sent to a single device (only requests
+  to the whole network are allowlisted) and small four-packet exchanges that Wireshark
+  cannot identify.
+- **Internet traffic.** 15 HTTPS flows from one device to the internet, of 225
+  internet-bound flows.
+- **Other local TCP.** A handful of TCP flows between local devices.
+
 Limits:
-- **Same session.** The held-out part is the same 15-minute session, so it is an optimistic
-  check. The real test is a capture from another day.
+- **Short baseline.** The baseline is one 15-minute session. A real deployment learns over
+  days, so it sees each device's habits.
 - **Known families.** The lab families are mostly caught by the supervised model. A higher
   anomaly threshold weakens the anomaly detector's job, catching attacks unlike anything in
   training. The held-out-family study would put a number on that.
